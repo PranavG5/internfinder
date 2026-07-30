@@ -1,0 +1,21 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Local database and sync artifacts — this is your private data, never commit it.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+.env
+.env.local
+.env*.local
+
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+npm-debug.log*

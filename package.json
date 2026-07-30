@@ -1,0 +1,41 @@
+{
+  "name": "internfinder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aggregates open internship listings from across the web and tracks your applications end to end.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:reset": "node --import tsx scripts/reset.ts",
+    "sync": "node --import tsx scripts/sync.ts",
+    "verify": "node --import tsx scripts/verify.ts",
+    "seed": "node --import tsx scripts/seed.ts",
+    "test": "node --import tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "next": "^15.5.22",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.6",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.1",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "tailwindcss": "^4.0.6",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "overrides": {
+    "sharp": "^0.35.3",
+    "postcss": "^8.5.25"
+  }
+}
