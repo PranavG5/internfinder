@@ -1,4 +1,4 @@
-import { fail, handler, ok, readJson } from '@/lib/api';
+import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
 import { getDb, nowSec } from '@/lib/db';
 import { boardFromUrl } from '@/lib/sources/seed';
 import { ensureSeedSources } from '@/lib/sync';
@@ -33,6 +33,9 @@ export const GET = handler(async () => {
  * a company's careers page, which is parsed into the right board.
  */
 export const POST = handler(async (request: Request) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const body = await readJson(request);
   const db = getDb();
 

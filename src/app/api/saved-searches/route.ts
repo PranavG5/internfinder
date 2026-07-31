@@ -1,4 +1,4 @@
-import { fail, handler, ok, readJson } from '@/lib/api';
+import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
 import { parseSearchParams, searchInternships, toSearchParams } from '@/lib/query';
 import { createSavedSearch, getProfile, listSavedSearches } from '@/lib/repo';
 
@@ -34,6 +34,9 @@ export const GET = handler(async () => {
 
 /** POST /api/saved-searches — save the current filter set. */
 export const POST = handler(async (request: Request) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const body = await readJson(request);
   const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
   if (!name) return fail('name is required', 422);

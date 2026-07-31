@@ -18,6 +18,36 @@ const now = nowSec();
 const ago = (days: number) => now - days * DAY;
 const ahead = (days: number) => now + days * DAY;
 
+/**
+ * Profile only, no applications. Used by the read-only demo deploy so fit
+ * scoring has something to score against — with an empty profile every listing
+ * scores identically, which looks like signal but isn't.
+ */
+if (process.argv.includes('--profile-only')) {
+  updateProfile({
+    name: 'Example Student',
+    school: 'State University',
+    major: 'Computer Science',
+    degree_level: 'Bachelors',
+    class_year: 'Junior',
+    grad_year: new Date().getFullYear() + 1,
+    gpa: 3.6,
+    work_auth: 'us-citizen',
+    skills: ['Python', 'TypeScript', 'React', 'SQL', 'PostgreSQL', 'AWS', 'Docker', 'Git'],
+    preferred_seasons: ['Summer'],
+    preferred_years: [String(new Date().getFullYear() + 1)],
+    preferred_fields: ['Software Engineering', 'AI & Machine Learning', 'Data & Analytics'],
+    preferred_locations: ['New York', 'CA', 'Remote'],
+    remote_pref: 'any',
+    willing_to_relocate: 1,
+    min_hourly: 30,
+    weekly_goal: 5,
+    onboarded: 1,
+  });
+  console.log('Seeded an example profile (no applications).');
+  process.exit(0);
+}
+
 if (process.argv.includes('--clear')) {
   const removed = db.prepare("DELETE FROM applications WHERE origin = 'demo'").run().changes;
   console.log(`Removed ${removed} demo application(s). Your own entries were left alone.`);

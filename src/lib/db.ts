@@ -20,9 +20,39 @@ function resolveSchemaPath(): string {
   );
 }
 
+/**
+ * Read an environment variable at runtime.
+ *
+ * Next.js statically replaces `process.env.SOME_NAME` in the server bundle with
+ * whatever the value was at *build* time, which silently freezes runtime
+ * configuration. Indexing with a non-literal key defeats that substitution, so
+ * the value is genuinely read when the function runs.
+ */
+function env(name: string): string | undefined {
+  const key = String(name);
+  return process.env[key];
+}
+
 export function dbPath(): string {
-  if (process.env.INTERNFINDER_DB) return process.env.INTERNFINDER_DB;
+  const override = env('INTERNFINDER_DB');
+  if (override) return override;
   return path.join(process.cwd(), 'data', 'internfinder.db');
+}
+
+/**
+ * True when the database must be treated as read-only.
+ *
+ * Serverless hosts (Vercel, Lambda) give a function a read-only filesystem, so
+ * the catalog can be built at deploy time and served, but nothing can be
+ * written back. The app degrades to a browse-only mode rather than failing.
+ * Set INTERNFINDER_READONLY=0 to override the auto-detection.
+ */
+export function isReadOnly(): boolean {
+  const flag = env('INTERNFINDER_READONLY');
+  if (flag === '0') return false;
+  if (flag) return true;
+  // During the build itself we need writes, so only lock down at runtime.
+  return env('VERCEL') === '1' && env('NEXT_PHASE') !== 'phase-production-build';
 }
 
 /**
@@ -33,6 +63,21 @@ export function getDb(): DB {
   if (cached) return cached;
 
   const file = dbPath();
+  const readonly = isReadOnly();
+
+  if (readonly) {
+    if (!fs.existsSync(file)) {
+      throw new Error(
+        `No database found at ${file}. In read-only mode the catalog must be built ` +
+          `before deploy (npm run sync).`,
+      );
+    }
+    // No schema exec, no WAL: both need write access.
+    const db = new Database(file, { readonly: true, fileMustExist: true });
+    cached = db;
+    return db;
+  }
+
   fs.mkdirSync(path.dirname(file), { recursive: true });
 
   const db = new Database(file);

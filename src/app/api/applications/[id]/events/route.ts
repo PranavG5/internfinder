@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
 import { addEvent, getApplication, listEvents } from '@/lib/repo';
 import { EVENT_TYPES } from '@/lib/types';
 
@@ -15,6 +15,9 @@ export const GET = handler(async (_request: Request, { params }: Ctx) => {
 
 /** POST /api/applications/:id/events — log a note, email, call, or milestone. */
 export const POST = handler(async (request: Request, { params }: Ctx) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
   if (!getApplication(id)) return fail('Application not found', 404);

@@ -1,4 +1,4 @@
-import { fail, handler, ok } from '@/lib/api';
+import { fail, handler, ok, readOnlyBlock } from '@/lib/api';
 import { getDb } from '@/lib/db';
 import { createApplication, updateProfile } from '@/lib/repo';
 import { APP_STATUSES, type AppStatus } from '@/lib/types';
@@ -16,6 +16,9 @@ export const dynamic = 'force-dynamic';
  * treated as the identity — so re-importing the same file is safe.
  */
 export const POST = handler(async (request: Request) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const contentType = request.headers.get('content-type') ?? '';
   const raw = await request.text();
   if (!raw.trim()) return fail('Request body was empty', 422);

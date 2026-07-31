@@ -1,4 +1,4 @@
-import { fail, handler, ok, readJson } from '@/lib/api';
+import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
 import { getDb } from '@/lib/db';
 import { createApplication, listApplications, type ApplicationFilters } from '@/lib/repo';
 import type { Internship } from '@/lib/types';
@@ -25,6 +25,9 @@ export const GET = handler(async (request: Request) => {
  * one click and stays linked to the listing.
  */
 export const POST = handler(async (request: Request) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const body = await readJson(request);
   const db = getDb();
 

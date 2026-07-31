@@ -20,6 +20,7 @@ export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState<{ open: number; active: number } | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
 
   // Close the mobile drawer whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
@@ -31,6 +32,7 @@ export function Nav() {
       .then((data) => {
         if (cancelled || !data) return;
         setCounts({ open: data.catalog?.open ?? 0, active: data.dashboard?.active ?? 0 });
+        setReadOnly(Boolean(data.readOnly));
       })
       .catch(() => {});
     return () => {
@@ -118,10 +120,18 @@ export function Nav() {
             className="border-t p-3 text-[0.6875rem] leading-relaxed"
             style={{ borderColor: 'var(--line)', color: 'var(--ink-muted)' }}
           >
-            <p>
-              Everything is stored locally in <code>data/internfinder.db</code>. No account, no
-              cloud, no tracking.
-            </p>
+            {readOnly ? (
+              <p>
+                <strong style={{ color: 'var(--ink-secondary)' }}>Read-only demo.</strong> Search and
+                filters work on real listings. Saving is disabled because this host has no writable
+                storage — clone the repo and run it locally to track applications.
+              </p>
+            ) : (
+              <p>
+                Everything is stored locally in <code>data/internfinder.db</code>. No account, no
+                cloud, no tracking.
+              </p>
+            )}
           </div>
         </div>
       </nav>

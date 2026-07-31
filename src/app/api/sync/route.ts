@@ -1,4 +1,4 @@
-import { handler, ok, readJson } from '@/lib/api';
+import { handler, ok, readJson, readOnlyBlock } from '@/lib/api';
 import { getDb } from '@/lib/db';
 import { catalogStats } from '@/lib/query';
 import { runSync, verifyLinks } from '@/lib/sync';
@@ -24,6 +24,9 @@ export const GET = handler(async () => {
  *   verify      number    also link-check this many listings afterwards
  */
 export const POST = handler(async (request: Request) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const body = await readJson(request);
 
   const kinds =

@@ -1,4 +1,22 @@
 import { NextResponse } from 'next/server';
+import { isReadOnly } from './db';
+
+/**
+ * Guard for routes that write. On a read-only deployment the catalog is served
+ * from a build-time snapshot, so saving is impossible — say so plainly instead
+ * of surfacing a SQLite error.
+ */
+export function readOnlyBlock(): Response | null {
+  if (!isReadOnly()) return null;
+  return NextResponse.json(
+    {
+      error:
+        'This is a read-only demo — browsing and filtering work, but nothing can be saved. Run InternFinder locally to track applications.',
+      readOnly: true,
+    },
+    { status: 403, headers: { 'Cache-Control': 'no-store' } },
+  );
+}
 
 /** Standard JSON success response. */
 export function ok<T>(data: T, init?: ResponseInit) {

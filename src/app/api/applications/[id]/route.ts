@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
 import {
   deleteApplication,
   getApplication,
@@ -31,6 +31,9 @@ export const GET = handler(async (_request: Request, { params }: Ctx) => {
 
 /** PATCH /api/applications/:id — update fields; status changes are logged. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
 
@@ -41,6 +44,9 @@ export const PATCH = handler(async (request: Request, { params }: Ctx) => {
 
 /** DELETE /api/applications/:id */
 export const DELETE = handler(async (_request: Request, { params }: Ctx) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
   if (!deleteApplication(id)) return fail('Application not found', 404);

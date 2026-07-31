@@ -51,6 +51,10 @@ const UNDERGRAD_ORDER = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'
  */
 export function computeFit(listing: FitCandidate, profile: ProfileView | null): FitResult | null {
   if (!profile) return null;
+  // With nothing filled in there is nothing to compare against, and every
+  // listing would score the same neutral number — which reads as signal but
+  // isn't. Better to show no score than a meaningless one.
+  if (!hasAnySignal(profile)) return null;
 
   const reasons: FitReason[] = [];
   const blockers: string[] = [];
@@ -411,6 +415,28 @@ function scoreLocation(listing: FitCandidate, profile: ProfileView): Component |
 
 function cap(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Does this profile say anything a listing can actually be scored against? */
+function hasAnySignal(profile: ProfileView): boolean {
+  return Boolean(
+    profile.work_auth ||
+      profile.gpa != null ||
+      profile.degree_level ||
+      profile.class_year ||
+      profile.min_hourly != null ||
+      profile.paid_only ||
+      profile.has_clearance ||
+      profile.earliest_start ||
+      profile.latest_start ||
+      profile.remote_pref !== 'any' ||
+      profile.resume_text ||
+      profile.skills.length ||
+      profile.preferred_seasons.length ||
+      profile.preferred_years.length ||
+      profile.preferred_fields.length ||
+      profile.preferred_locations.length,
+  );
 }
 
 /** Skills the student claims, from the profile list plus resume text. */

@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
 import { getDb } from '@/lib/db';
 import { deleteSavedSearch, touchSavedSearch } from '@/lib/repo';
 
@@ -8,6 +8,9 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** PATCH /api/saved-searches/:id — rename, toggle alerts, or mark as seen. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
 
@@ -29,6 +32,9 @@ export const PATCH = handler(async (request: Request, { params }: Ctx) => {
 
 /** DELETE /api/saved-searches/:id */
 export const DELETE = handler(async (_request: Request, { params }: Ctx) => {
+  const blocked = readOnlyBlock();
+  if (blocked) return blocked;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
   if (!deleteSavedSearch(id)) return fail('Saved search not found', 404);
