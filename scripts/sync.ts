@@ -15,7 +15,7 @@
 process.env.INTERNFINDER_READONLY = '0';
 
 import { runSync, verifyLinks } from '../src/lib/sync';
-import { getDb } from '../src/lib/db';
+import { finalizeForReadOnly, getDb } from '../src/lib/db';
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -69,6 +69,11 @@ async function main() {
     const v = await verifyLinks(verifyCount, { onProgress: (m) => console.log(`  ${m}`) });
     console.log(`  ${v.alive} alive · ${v.closed} closed · ${v.errors} unreachable`);
   }
+
+  // Leave a single self-contained file with no -wal/-shm alongside it, so the
+  // catalog can be shipped to a host that cannot write. Locally this is a no-op
+  // in practice: the next writable open switches WAL back on.
+  finalizeForReadOnly(db);
 
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 }

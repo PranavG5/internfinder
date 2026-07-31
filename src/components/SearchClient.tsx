@@ -69,9 +69,16 @@ export function SearchClient() {
     const qs = toSearchParams(query).toString();
 
     Promise.all([
-      fetch(`/api/internships?${qs}`, { signal: controller.signal }).then((r) =>
-        r.ok ? r.json() : Promise.reject(new Error(`Search failed (${r.status})`)),
-      ),
+      fetch(`/api/internships?${qs}`, { signal: controller.signal }).then(async (r) => {
+        if (r.ok) return r.json();
+        // Surface what the server actually said — a bare status code sends you
+        // digging through logs for something the response already told you.
+        const detail = await r
+          .json()
+          .then((body) => body?.error as string | undefined)
+          .catch(() => undefined);
+        throw new Error(detail ? `${detail} (${r.status})` : `Search failed (${r.status})`);
+      }),
       fetch(`/api/internships/facets?${qs}`, { signal: controller.signal }).then((r) =>
         r.ok ? r.json() : null,
       ),

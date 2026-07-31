@@ -33,21 +33,42 @@ function env(name: string): string | undefined {
   return process.env[key];
 }
 
+/**
+ * Where the database lives.
+ *
+ * On a serverless host the working directory is not always the project root, so
+ * an existing file is looked up across the plausible locations before falling
+ * back to the canonical path used when creating one.
+ */
 export function dbPath(): string {
   const override = env('INTERNFINDER_DB');
   if (override) return override;
-  return path.join(process.cwd(), 'data', 'internfinder.db');
+
+  const canonical = path.join(process.cwd(), 'data', 'internfinder.db');
+  const candidates = [
+    canonical,
+    path.join(process.cwd(), '.next', 'server', 'data', 'internfinder.db'),
+    path.join(import.meta.dirname ?? '.', '..', '..', 'data', 'internfinder.db'),
+    '/var/task/data/internfinder.db',
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch {
+      // An unreadable candidate is simply not the one.
+    }
+  }
+  return canonical;
 }
 
+/** Set once the database is actually open, from how it opened rather than a guess. */
+let readOnlyMode: boolean | null = null;
+
 /**
- * True when the database must be treated as read-only.
- *
- * Serverless hosts (Vercel, Lambda) give a function a read-only filesystem, so
- * the catalog can be built at deploy time and served, but nothing can be
- * written back. The app degrades to a browse-only mode rather than failing.
- * Set INTERNFINDER_READONLY=0 to override the auto-detection.
+ * Best guess at read-only-ness *before* the database has been opened.
+ * Only a hint: the authoritative answer comes from actually opening the file.
  */
-export function isReadOnly(): boolean {
+function readOnlyHint(): boolean {
   const flag = env('INTERNFINDER_READONLY');
   if (flag === '0') return false;
   if (flag) return true;
@@ -56,40 +77,107 @@ export function isReadOnly(): boolean {
 }
 
 /**
- * Opens (and on first call, creates) the local SQLite database.
- * The connection is cached for the lifetime of the process.
+ * True when the database cannot be written to.
+ *
+ * This is deliberately derived from how the file actually opened rather than
+ * from environment sniffing. Detecting the host by environment variable proved
+ * unreliable — Vercel only exposes VERCEL=1 at runtime when a project setting is
+ * enabled — and getting it wrong meant every request died on a raw SQLite
+ * "unable to open database file" instead of degrading to browse-only.
+ */
+export function isReadOnly(): boolean {
+  const flag = env('INTERNFINDER_READONLY');
+  if (flag === '0') return false;
+  if (flag) return true;
+
+  if (readOnlyMode === null) {
+    try {
+      getDb();
+    } catch {
+      // Fall through to the hint; the caller will surface the real error.
+    }
+  }
+  return readOnlyMode ?? readOnlyHint();
+}
+
+/**
+ * Opens (and on first call, creates) the database.
+ *
+ * Tries read-write first, then falls back to read-only if the filesystem won't
+ * allow it — which is what makes a serverless deploy work without any
+ * host-specific configuration. The connection is cached for the process.
  */
 export function getDb(): DB {
   if (cached) return cached;
 
   const file = dbPath();
-  const readonly = isReadOnly();
 
-  if (readonly) {
-    if (!fs.existsSync(file)) {
-      throw new Error(
-        `No database found at ${file}. In read-only mode the catalog must be built ` +
-          `before deploy (npm run sync).`,
-      );
+  if (!readOnlyHint()) {
+    try {
+      cached = openWritable(file);
+      readOnlyMode = false;
+      return cached;
+    } catch (err) {
+      // Only a missing catalog is fatal. Anything else (a read-only mount, no
+      // permission to create the WAL) means we can still serve what shipped.
+      if (!fs.existsSync(file)) throw err;
     }
-    // No schema exec, no WAL: both need write access.
-    const db = new Database(file, { readonly: true, fileMustExist: true });
-    cached = db;
-    return db;
   }
 
+  if (!fs.existsSync(file)) {
+    throw new Error(
+      `No database found at ${file}. The catalog must be built before deploy — ` +
+        `run "npm run sync" locally, or let the deploy build do it.`,
+    );
+  }
+
+  // No schema exec and no WAL here: both need write access.
+  cached = new Database(file, { readonly: true, fileMustExist: true });
+  readOnlyMode = true;
+  return cached;
+}
+
+function openWritable(file: string): DB {
   fs.mkdirSync(path.dirname(file), { recursive: true });
 
   const db = new Database(file);
+
+  // better-sqlite3 opens the file lazily, so a read-only filesystem is not
+  // reported by the constructor — it surfaces on the first statement, long
+  // after the caller could have fallen back. Force the question now by taking a
+  // write lock and immediately releasing it.
+  try {
+    db.exec('BEGIN IMMEDIATE; ROLLBACK;');
+  } catch (err) {
+    db.close();
+    throw err;
+  }
+
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.pragma('busy_timeout = 5000');
   db.exec(fs.readFileSync(resolveSchemaPath(), 'utf8'));
 
   seedProfileRow(db);
-
-  cached = db;
   return db;
+}
+
+/**
+ * Collapse the write-ahead log into the main file and leave the database in
+ * rollback-journal mode.
+ *
+ * A WAL-mode database cannot be opened on a read-only filesystem at all: WAL
+ * needs a writable `-shm` companion file. Shipping the catalog to a serverless
+ * host therefore requires taking it out of WAL first. Local use is unaffected —
+ * the next writable open turns WAL straight back on.
+ */
+export function finalizeForReadOnly(db: DB = getDb()): void {
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.pragma('journal_mode = DELETE');
+  } catch {
+    // Best effort: a database that is already read-only needs no finalizing.
+  }
 }
 
 function seedProfileRow(db: DB) {
