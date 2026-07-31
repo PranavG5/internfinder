@@ -8,6 +8,13 @@
  * Demo rows are tagged with origin='demo' so --clear can remove exactly what
  * this script created and nothing you added yourself.
  */
+/**
+ * CLI scripts always own the database file, even when VERCEL=1 marks the
+ * runtime as read-only — the whole point of the build step is to write the
+ * catalog before the serverless runtime takes over.
+ */
+process.env.INTERNFINDER_READONLY = '0';
+
 import { getDb, nowSec } from '../src/lib/db';
 import { addEvent, createApplication, createChild, updateProfile } from '../src/lib/repo';
 import { DAY } from '../src/lib/util';

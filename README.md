@@ -209,6 +209,51 @@ npm run typecheck
 
 ---
 
+## Deploying
+
+InternFinder is built to run locally, because that's what keeps your GPA, resume,
+and rejection history on your own machine. It can also be deployed, with one
+important caveat depending on the host.
+
+### Vercel (browse-only)
+
+Serverless functions get a **read-only filesystem**, so a SQLite file can be read
+but never written. Rather than ship something that silently loses data, the app
+detects this and switches to a genuine browse-only mode:
+
+- The catalog is built during `vercel-build`, while the filesystem is still
+  writable, and travels with the function via `outputFileTracingIncludes`.
+- Search, filters, facet counts, fit scoring, and the calendar feed all work on
+  real listings.
+- All 14 mutating endpoints return `403` with an explanatory message, and the
+  sidebar says so up front. Nothing fails silently.
+
+To deploy: import the repository at [vercel.com/new](https://vercel.com/new) and
+pick this branch. No environment variables and no database service are needed —
+Vercel sets `VERCEL=1`, which is what triggers read-only mode. Or from a clone:
+
+```bash
+npx vercel --prod
+```
+
+Each deploy re-syncs, so the deployed catalog is as fresh as the deploy.
+
+### A deployment that can actually save
+
+Two options, depending on what you care about:
+
+- **A host with a persistent disk** (Fly.io, Railway, a small VPS). Keeps the
+  SQLite design intact — mount a volume, point `INTERNFINDER_DB` at it, and
+  everything works, tracker included. Add auth, since the tracker would otherwise
+  be public.
+- **Swap SQLite for hosted Postgres** (Supabase, Neon). Then Vercel works fully,
+  at the cost of your application data living on someone else's server. This is a
+  real rewrite of `db.ts`, `query.ts`, and `repo.ts` — the queries use SQLite's
+  synchronous API and FTS5 full-text search.
+
+If you just want to check deadlines from your phone without either, run it locally
+and expose it over Tailscale — no rewrite, no data leaving your machine.
+
 ## Notes
 
 - **Requires Node 20.11+.** Behind a corporate proxy, run with `NODE_USE_ENV_PROXY=1`.

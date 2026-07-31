@@ -7,6 +7,13 @@
  * Your applications, notes, interviews, and profile live in the same file, so a
  * full reset is destructive and requires --yes.
  */
+/**
+ * CLI scripts always own the database file, even when VERCEL=1 marks the
+ * runtime as read-only — the whole point of the build step is to write the
+ * catalog before the serverless runtime takes over.
+ */
+process.env.INTERNFINDER_READONLY = '0';
+
 import fs from 'node:fs';
 import { dbPath, getDb } from '../src/lib/db';
 
