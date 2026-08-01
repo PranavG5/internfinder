@@ -14,7 +14,8 @@
     "verify": "node --import tsx scripts/verify.ts",
     "seed": "node --import tsx scripts/seed.ts",
     "test": "node --import tsx --test test/*.test.ts",
-    "vercel-build": "node --import tsx scripts/sync.ts --kinds github --no-discover && node --import tsx scripts/seed.ts --profile-only && next build"
+    "vercel-build": "node --import tsx scripts/sync.ts --kinds github --no-discover && node --import tsx scripts/seed.ts --profile-only && node --import tsx scripts/finalize.ts && next build",
+    "finalize": "node --import tsx scripts/finalize.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

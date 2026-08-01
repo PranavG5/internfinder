@@ -40,17 +40,20 @@ function env(name: string): string | undefined {
  * an existing file is looked up across the plausible locations before falling
  * back to the canonical path used when creating one.
  */
-export function dbPath(): string {
-  const override = env('INTERNFINDER_DB');
-  if (override) return override;
-
-  const canonical = path.join(process.cwd(), 'data', 'internfinder.db');
-  const candidates = [
-    canonical,
+function dbCandidates(): string[] {
+  return [
+    path.join(process.cwd(), 'data', 'internfinder.db'),
     path.join(process.cwd(), '.next', 'server', 'data', 'internfinder.db'),
     path.join(import.meta.dirname ?? '.', '..', '..', 'data', 'internfinder.db'),
     '/var/task/data/internfinder.db',
   ];
+}
+
+export function dbPath(): string {
+  const override = env('INTERNFINDER_DB');
+  if (override) return override;
+
+  const candidates = dbCandidates();
   for (const candidate of candidates) {
     try {
       if (fs.existsSync(candidate)) return candidate;
@@ -58,7 +61,35 @@ export function dbPath(): string {
       // An unreadable candidate is simply not the one.
     }
   }
-  return canonical;
+  return candidates[0];
+}
+
+/**
+ * Explain a missing database in terms of what was actually on disk.
+ *
+ * A bare "unable to open database file" from SQLite says nothing about whether
+ * the catalog was never built or simply landed somewhere unexpected, which is
+ * the only thing worth knowing when a deploy fails.
+ */
+function missingDbError(): Error {
+  const lines = dbCandidates().map((candidate) => {
+    const dir = path.dirname(candidate);
+    let detail: string;
+    try {
+      detail = fs.existsSync(dir)
+        ? `directory exists, contains: ${fs.readdirSync(dir).slice(0, 8).join(', ') || '(empty)'}`
+        : 'directory does not exist';
+    } catch (err) {
+      detail = `could not read directory (${(err as Error).message})`;
+    }
+    return `  - ${candidate}\n      ${detail}`;
+  });
+
+  return new Error(
+    'No internship catalog found. It is built during deploy by "npm run vercel-build" — ' +
+      'if this is a serverless host, check that the build command actually ran the sync step. ' +
+      `Locally, run "npm run sync".\nLooked in:\n${lines.join('\n')}\ncwd: ${process.cwd()}`,
+  );
 }
 
 /** Set once the database is actually open, from how it opened rather than a guess. */
@@ -120,16 +151,12 @@ export function getDb(): DB {
     } catch (err) {
       // Only a missing catalog is fatal. Anything else (a read-only mount, no
       // permission to create the WAL) means we can still serve what shipped.
-      if (!fs.existsSync(file)) throw err;
+      if (!fs.existsSync(file)) throw missingDbError();
+      void err;
     }
   }
 
-  if (!fs.existsSync(file)) {
-    throw new Error(
-      `No database found at ${file}. The catalog must be built before deploy — ` +
-        `run "npm run sync" locally, or let the deploy build do it.`,
-    );
-  }
+  if (!fs.existsSync(file)) throw missingDbError();
 
   // No schema exec and no WAL here: both need write access.
   cached = new Database(file, { readonly: true, fileMustExist: true });
