@@ -26,7 +26,7 @@ npm run dev                    # http://localhost:3000
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Dashboard → Project Settings → API |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | same page (anon / publishable key) |
-| `SUPABASE_DB_URL` | Dashboard → Connect → Session pooler connection string |
+| `SUPABASE_DB_URL` | Dashboard → Connect → Transaction pooler connection string (port 6543) |
 
 The schema ships as SQL migrations in `supabase/migrations/` — apply them once
 with the SQL editor or `supabase db push`.
