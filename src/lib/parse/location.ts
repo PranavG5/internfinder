@@ -76,6 +76,140 @@ const ISO3_COUNTRIES: Record<string, string> = {
   VNM: 'Vietnam', PHL: 'Philippines', AUS: 'Australia', NZL: 'New Zealand',
 };
 
+/**
+ * Well-known cities, so a location that names only a city still answers the
+ * country and region filters.
+ *
+ * Most boards write "London" or "Amsterdam" or "SF" and stop there — before
+ * this, none of those rows could be found by country at all, which was the
+ * single largest gap in the location filters. Entries are limited to cities
+ * whose name is unambiguous at world scale; ambiguous ones (Cambridge,
+ * Birmingham, Hyderabad's namesakes, Vancouver WA vs BC) are deliberately
+ * absent rather than guessed.
+ */
+const CITY_PLACES: Record<string, [country: string, region?: string]> = {
+  // United States
+  'new york': ['United States', 'NY'], 'new york city': ['United States', 'NY'],
+  brooklyn: ['United States', 'NY'], manhattan: ['United States', 'NY'],
+  'san francisco': ['United States', 'CA'], 'los angeles': ['United States', 'CA'],
+  'san jose': ['United States', 'CA'], 'san diego': ['United States', 'CA'],
+  'palo alto': ['United States', 'CA'], 'mountain view': ['United States', 'CA'],
+  sunnyvale: ['United States', 'CA'], cupertino: ['United States', 'CA'],
+  'santa clara': ['United States', 'CA'], 'menlo park': ['United States', 'CA'],
+  oakland: ['United States', 'CA'], berkeley: ['United States', 'CA'],
+  irvine: ['United States', 'CA'], sacramento: ['United States', 'CA'],
+  pasadena: ['United States', 'CA'], 'redwood city': ['United States', 'CA'],
+  seattle: ['United States', 'WA'], bellevue: ['United States', 'WA'],
+  redmond: ['United States', 'WA'], portland: ['United States', 'OR'],
+  chicago: ['United States', 'IL'], boston: ['United States', 'MA'],
+  'san mateo': ['United States', 'CA'],
+  somerville: ['United States', 'MA'], austin: ['United States', 'TX'],
+  dallas: ['United States', 'TX'], houston: ['United States', 'TX'],
+  'san antonio': ['United States', 'TX'], 'fort worth': ['United States', 'TX'],
+  denver: ['United States', 'CO'], boulder: ['United States', 'CO'],
+  atlanta: ['United States', 'GA'], miami: ['United States', 'FL'],
+  orlando: ['United States', 'FL'], tampa: ['United States', 'FL'],
+  philadelphia: ['United States', 'PA'], pittsburgh: ['United States', 'PA'],
+  detroit: ['United States', 'MI'], 'ann arbor': ['United States', 'MI'],
+  minneapolis: ['United States', 'MN'], 'st. louis': ['United States', 'MO'],
+  'st louis': ['United States', 'MO'], 'kansas city': ['United States', 'MO'],
+  nashville: ['United States', 'TN'], charlotte: ['United States', 'NC'],
+  raleigh: ['United States', 'NC'], durham: ['United States', 'NC'],
+  'salt lake city': ['United States', 'UT'], phoenix: ['United States', 'AZ'],
+  tempe: ['United States', 'AZ'], tucson: ['United States', 'AZ'],
+  'las vegas': ['United States', 'NV'], baltimore: ['United States', 'MD'],
+  'washington dc': ['United States', 'DC'], washington: ['United States', 'DC'],
+  arlington: ['United States', 'VA'], reston: ['United States', 'VA'],
+  'new orleans': ['United States', 'LA'], milwaukee: ['United States', 'WI'],
+  madison: ['United States', 'WI'], columbus: ['United States', 'OH'],
+  cleveland: ['United States', 'OH'], cincinnati: ['United States', 'OH'],
+  indianapolis: ['United States', 'IN'], 'des moines': ['United States', 'IA'],
+  omaha: ['United States', 'NE'], albuquerque: ['United States', 'NM'],
+  // Canada
+  toronto: ['Canada', 'ON'], ottawa: ['Canada', 'ON'], waterloo: ['Canada', 'ON'],
+  mississauga: ['Canada', 'ON'], montreal: ['Canada', 'QC'], 'montréal': ['Canada', 'QC'],
+  calgary: ['Canada', 'AB'], edmonton: ['Canada', 'AB'], winnipeg: ['Canada', 'MB'],
+  // United Kingdom & Ireland
+  london: ['United Kingdom'], manchester: ['United Kingdom'], edinburgh: ['United Kingdom'],
+  glasgow: ['United Kingdom'], bristol: ['United Kingdom'], leeds: ['United Kingdom'],
+  oxford: ['United Kingdom'], belfast: ['United Kingdom'], cardiff: ['United Kingdom'],
+  dublin: ['Ireland'], cork: ['Ireland'], galway: ['Ireland'],
+  // Europe
+  amsterdam: ['Netherlands'], rotterdam: ['Netherlands'], eindhoven: ['Netherlands'],
+  utrecht: ['Netherlands'], 'the hague': ['Netherlands'], delft: ['Netherlands'],
+  berlin: ['Germany'], munich: ['Germany'], 'münchen': ['Germany'], hamburg: ['Germany'],
+  frankfurt: ['Germany'], stuttgart: ['Germany'], cologne: ['Germany'], 'köln': ['Germany'],
+  dusseldorf: ['Germany'], 'düsseldorf': ['Germany'], dresden: ['Germany'],
+  leipzig: ['Germany'], nuremberg: ['Germany'], karlsruhe: ['Germany'],
+  penzberg: ['Germany'], regensburg: ['Germany'],
+  paris: ['France'], lyon: ['France'], toulouse: ['France'], grenoble: ['France'],
+  marseille: ['France'], nantes: ['France'], lille: ['France'], bordeaux: ['France'],
+  madrid: ['Spain'], barcelona: ['Spain'], valencia: ['Spain'], seville: ['Spain'],
+  malaga: ['Spain'], 'málaga': ['Spain'], zaragoza: ['Spain'],
+  milan: ['Italy'], milano: ['Italy'], rome: ['Italy'], roma: ['Italy'],
+  turin: ['Italy'], torino: ['Italy'], florence: ['Italy'], bologna: ['Italy'],
+  naples: ['Italy'], lisbon: ['Portugal'], lisboa: ['Portugal'], porto: ['Portugal'],
+  brussels: ['Belgium'], antwerp: ['Belgium'], leuven: ['Belgium'], ghent: ['Belgium'],
+  zurich: ['Switzerland'], 'zürich': ['Switzerland'], geneva: ['Switzerland'],
+  basel: ['Switzerland'], lausanne: ['Switzerland'], bern: ['Switzerland'],
+  vienna: ['Austria'], wien: ['Austria'], graz: ['Austria'], gratkorn: ['Austria'],
+  linz: ['Austria'], salzburg: ['Austria'],
+  stockholm: ['Sweden'], gothenburg: ['Sweden'], 'göteborg': ['Sweden'], lund: ['Sweden'],
+  oslo: ['Norway'], trondheim: ['Norway'], copenhagen: ['Denmark'], aarhus: ['Denmark'],
+  helsinki: ['Finland'], espoo: ['Finland'], tampere: ['Finland'],
+  warsaw: ['Poland'], warszawa: ['Poland'], krakow: ['Poland'], 'kraków': ['Poland'],
+  wroclaw: ['Poland'], 'wrocław': ['Poland'], gdansk: ['Poland'], 'gdańsk': ['Poland'],
+  poznan: ['Poland'], 'poznań': ['Poland'], lodz: ['Poland'], 'łódź': ['Poland'],
+  prague: ['Czech Republic'], praha: ['Czech Republic'], brno: ['Czech Republic'],
+  budapest: ['Hungary'], bucharest: ['Romania'], 'cluj-napoca': ['Romania'],
+  sofia: ['Bulgaria'], athens: ['Greece'], istanbul: ['Turkey'], ankara: ['Turkey'],
+  kyiv: ['Ukraine'], kiev: ['Ukraine'], lviv: ['Ukraine'],
+  // Middle East & Africa
+  'tel aviv': ['Israel'], 'tel aviv-yafo': ['Israel'], haifa: ['Israel'],
+  jerusalem: ['Israel'], herzliya: ['Israel'], yokneam: ['Israel'],
+  dubai: ['United Arab Emirates'], 'abu dhabi': ['United Arab Emirates'],
+  'cape town': ['South Africa'], johannesburg: ['South Africa'],
+  lagos: ['Nigeria'], nairobi: ['Kenya'], cairo: ['Egypt'],
+  // Asia-Pacific
+  bangalore: ['India'], bengaluru: ['India'], mumbai: ['India'], delhi: ['India'],
+  'new delhi': ['India'], gurgaon: ['India'], gurugram: ['India'], noida: ['India'],
+  pune: ['India'], chennai: ['India'], kolkata: ['India'], ahmedabad: ['India'],
+  singapore: ['Singapore'], 'kuala lumpur': ['Malaysia'], penang: ['Malaysia'],
+  jakarta: ['Indonesia'], bangkok: ['Thailand'], manila: ['Philippines'],
+  'ho chi minh city': ['Vietnam'], hanoi: ['Vietnam'],
+  tokyo: ['Japan'], osaka: ['Japan'], kyoto: ['Japan'], yokohama: ['Japan'],
+  seoul: ['South Korea'], busan: ['South Korea'],
+  beijing: ['China'], shanghai: ['China'], shenzhen: ['China'], guangzhou: ['China'],
+  hangzhou: ['China'], chengdu: ['China'], suzhou: ['China'], wuhan: ['China'],
+  'hong kong': ['Hong Kong'], taipei: ['Taiwan'], hsinchu: ['Taiwan'],
+  sydney: ['Australia'], melbourne: ['Australia'], brisbane: ['Australia'],
+  perth: ['Australia'], canberra: ['Australia'], adelaide: ['Australia'],
+  auckland: ['New Zealand'], wellington: ['New Zealand'],
+  // Latin America
+  'sao paulo': ['Brazil'], 'são paulo': ['Brazil'], 'rio de janeiro': ['Brazil'],
+  'belo horizonte': ['Brazil'], 'mexico city': ['Mexico'], guadalajara: ['Mexico'],
+  monterrey: ['Mexico'], 'buenos aires': ['Argentina'], santiago: ['Chile'],
+  bogota: ['Colombia'], 'bogotá': ['Colombia'], lima: ['Peru'], 'san jose, costa rica': ['Costa Rica'],
+};
+
+/** Shorthands that boards use in place of a city name. */
+const CITY_ABBREVIATIONS: Record<string, string> = {
+  nyc: 'New York, NY',
+  sf: 'San Francisco, CA',
+  sfo: 'San Francisco, CA',
+  'sf bay area': 'San Francisco, CA',
+  la: 'Los Angeles, CA',
+  dc: 'Washington, DC',
+  'd.c.': 'Washington, DC',
+  atx: 'Austin, TX',
+  chi: 'Chicago, IL',
+  bos: 'Boston, MA',
+  sea: 'Seattle, WA',
+  yyz: 'Toronto, ON',
+  ldn: 'London',
+  blr: 'Bangalore',
+};
+
 /** Resolve a single segment to a country name, or null if it isn't one. */
 function asCountryName(segment: string): string | null {
   const trimmed = segment.trim();
@@ -163,6 +297,9 @@ function normalizeOne(input: string): string | null {
   if (!s) return null;
 
   if (/^remote$/i.test(s)) return 'Remote';
+
+  const expanded = CITY_ABBREVIATIONS[s.toLowerCase()];
+  if (expanded) s = expanded;
 
   const segments = orderCityFirst(segmentsOf(s));
   if (segments.length === 0) return null;
@@ -284,6 +421,14 @@ function splitLocation(loc: string): { city: string | null; region: string | nul
       region: parts.length > 2 ? parts[1] : null,
       country: asCountry,
     };
+  }
+
+  // Nothing in the string names a country, so fall back to recognizing the
+  // city itself — "London" and "Amsterdam" are locations, not mysteries.
+  const known = CITY_PLACES[parts[0].toLowerCase()];
+  if (known) {
+    const [country, region] = known;
+    return { city: parts[0], region: parts[1] ?? region ?? null, country };
   }
 
   return { city: parts[0], region: parts[1] ?? null, country: null };

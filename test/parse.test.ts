@@ -307,6 +307,27 @@ describe('parseLocations', () => {
     assert.equal(r.country, 'United States');
   });
 
+  it('resolves a bare city name to its country', () => {
+    // Most boards write only a city. Before the gazetteer these rows had no
+    // country at all and could not be found by the country filter.
+    assert.equal(parseLocations(['London']).country, 'United Kingdom');
+    assert.equal(parseLocations(['Amsterdam']).country, 'Netherlands');
+    assert.equal(parseLocations(['Bengaluru']).country, 'India');
+    const sf = parseLocations(['San Francisco']);
+    assert.equal(sf.region, 'CA');
+    assert.equal(sf.country, 'United States');
+  });
+
+  it('expands city shorthands', () => {
+    const r = parseLocations(['NYC']);
+    assert.equal(r.city, 'New York');
+    assert.equal(r.region, 'NY');
+  });
+
+  it('prefers a region stated in the string over the gazetteer', () => {
+    assert.equal(parseLocations(['Paris, IDF, Fr']).region, 'IDF');
+  });
+
   it('drops a work-arrangement prefix from the city', () => {
     const r = parseLocations(['Hybrid - Austin, TX']);
     assert.equal(r.city, 'Austin');
