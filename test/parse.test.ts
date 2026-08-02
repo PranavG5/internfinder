@@ -269,6 +269,49 @@ describe('parseLocations', () => {
     assert.equal(r.locationType, 'onsite');
     assert.equal(r.isRemote, 0);
   });
+
+  // Workday is the largest single source of listings and writes locations
+  // broadest-first with hyphens, which the country and region filters read.
+  it('reads a Workday hyphen hierarchy', () => {
+    const r = parseLocations(['United States-Florida-Melbourne']);
+    assert.equal(r.city, 'Melbourne');
+    assert.equal(r.region, 'FL');
+    assert.equal(r.country, 'United States');
+  });
+
+  it('reorders a country-first location to city-first', () => {
+    const r = parseLocations(['US, CA, Santa Clara']);
+    assert.equal(r.primary, 'Santa Clara, CA, United States');
+    assert.equal(r.city, 'Santa Clara');
+  });
+
+  it('unpacks a slugified Workday office address', () => {
+    const r = parseLocations(['CA---San-Jose---3850-N-First-St']);
+    assert.equal(r.city, 'San Jose');
+    assert.equal(r.region, 'CA');
+  });
+
+  it('resolves three-letter country codes', () => {
+    assert.equal(parseLocations(['Melbourne, Victoria, AUS']).country, 'Australia');
+    assert.equal(parseLocations(['Shanghai, CHN']).country, 'China');
+  });
+
+  it('does not split ordinary hyphenated place names', () => {
+    assert.equal(parseLocations(['Winston-Salem, NC']).city, 'Winston-Salem');
+    assert.equal(parseLocations(['Tokyo-To, Japan']).city, 'Tokyo-To');
+  });
+
+  it('does not send Mexico, Missouri to Mexico', () => {
+    const r = parseLocations(['Mexico, MO']);
+    assert.equal(r.city, 'Mexico');
+    assert.equal(r.country, 'United States');
+  });
+
+  it('drops a work-arrangement prefix from the city', () => {
+    const r = parseLocations(['Hybrid - Austin, TX']);
+    assert.equal(r.city, 'Austin');
+    assert.equal(r.locationType, 'hybrid');
+  });
 });
 
 describe('dates', () => {

@@ -55,6 +55,36 @@ const COUNTRY_ALIASES: Record<string, string> = {
   peru: 'Peru', 'costa rica': 'Costa Rica', 'puerto rico': 'United States',
 };
 
+/**
+ * ISO 3166 alpha-3 codes, which several large sources use instead of names
+ * ("Melbourne, Victoria, AUS", "Shanghai, CHN"). Kept apart from the alias
+ * table and only consulted for an all-caps three-letter segment, so ordinary
+ * words like "Can" or "Per" can never be read as a country.
+ */
+const ISO3_COUNTRIES: Record<string, string> = {
+  USA: 'United States', GBR: 'United Kingdom', CAN: 'Canada', MEX: 'Mexico',
+  BRA: 'Brazil', ARG: 'Argentina', CHL: 'Chile', COL: 'Colombia', PER: 'Peru',
+  CRI: 'Costa Rica', DEU: 'Germany', FRA: 'France', ESP: 'Spain', ITA: 'Italy',
+  NLD: 'Netherlands', BEL: 'Belgium', AUT: 'Austria', CHE: 'Switzerland',
+  SWE: 'Sweden', NOR: 'Norway', DNK: 'Denmark', FIN: 'Finland', IRL: 'Ireland',
+  PRT: 'Portugal', POL: 'Poland', CZE: 'Czech Republic', HUN: 'Hungary',
+  ROU: 'Romania', GRC: 'Greece', TUR: 'Turkey', UKR: 'Ukraine', ISR: 'Israel',
+  ARE: 'United Arab Emirates', ZAF: 'South Africa', NGA: 'Nigeria', KEN: 'Kenya',
+  EGY: 'Egypt', IND: 'India', PAK: 'Pakistan', BGD: 'Bangladesh', CHN: 'China',
+  HKG: 'Hong Kong', TWN: 'Taiwan', JPN: 'Japan', KOR: 'South Korea',
+  SGP: 'Singapore', MYS: 'Malaysia', IDN: 'Indonesia', THA: 'Thailand',
+  VNM: 'Vietnam', PHL: 'Philippines', AUS: 'Australia', NZL: 'New Zealand',
+};
+
+/** Resolve a single segment to a country name, or null if it isn't one. */
+function asCountryName(segment: string): string | null {
+  const trimmed = segment.trim();
+  if (trimmed.length === 3 && trimmed === trimmed.toUpperCase() && ISO3_COUNTRIES[trimmed]) {
+    return ISO3_COUNTRIES[trimmed];
+  }
+  return COUNTRY_ALIASES[trimmed.toLowerCase()] ?? (isKnownCountry(trimmed) ? trimmed : null);
+}
+
 const REMOTE_RE = /\b(?:remote|work\s+from\s+home|wfh|virtual|telecommut|anywhere|distributed)\b/i;
 const HYBRID_RE = /\bhybrid\b/i;
 const ONSITE_RE = /\b(?:on[-\s]?site|in[-\s]?person|in[-\s]?office)\b/i;
@@ -127,11 +157,14 @@ export function parseLocations(
 function normalizeOne(input: string): string | null {
   let s = input.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
   s = s.replace(/^(?:remote\s*[-–—,]\s*|remote\s+in\s+)/i, 'Remote, ');
+  // The arrangement is already captured as a location type; leaving it glued to
+  // the front turns "Hybrid - Austin, TX" into a city called "Hybrid - Austin".
+  s = s.replace(/^(?:hybrid|on[-\s]?site|in[-\s]?office|in[-\s]?person)\s*[-–—,]\s*/i, '');
   if (!s) return null;
 
   if (/^remote$/i.test(s)) return 'Remote';
 
-  const segments = s.split(',').map((p) => p.trim()).filter(Boolean);
+  const segments = orderCityFirst(segmentsOf(s));
   if (segments.length === 0) return null;
 
   const out = segments.map((seg, i) => {
@@ -140,11 +173,72 @@ function normalizeOne(input: string): string | null {
     // A two-letter US state code must win over any same-spelled country code.
     if (STATE_CODES.has(seg.toUpperCase()) && seg.length === 2) return seg.toUpperCase();
     if (COUNTRY_ALIASES[lower]) return COUNTRY_ALIASES[lower];
+    if (seg.length === 3 && ISO3_COUNTRIES[seg.toUpperCase()]) return ISO3_COUNTRIES[seg.toUpperCase()];
     if (seg.length <= 3 && seg === seg.toUpperCase()) return seg; // already a code
     return titleCaseLoose(seg);
   });
 
   return unique(out).join(', ').slice(0, 80);
+}
+
+/**
+ * Break a location string into its parts.
+ *
+ * Commas are the usual separator, but Workday — the largest source by a wide
+ * margin — writes hierarchies with hyphens instead: "United States-Florida-
+ * Melbourne", "USA - CA - Santa Clara", "CA---San-Jose---3850-N-First-St".
+ * Splitting on every hyphen would wreck ordinary names like "Winston-Salem",
+ * so a bare hyphen only separates when doing so yields a recognizable place.
+ */
+function segmentsOf(input: string): string[] {
+  const tidy = (parts: string[]) => parts.map((p) => p.trim()).filter(Boolean);
+
+  if (input.includes(',')) return tidy(input.split(','));
+
+  // A doubled hyphen separates, and inside those segments a single hyphen is
+  // a space — that whole format comes from Workday slugifying an address.
+  const doubled = tidy(input.split(/-{2,}/));
+  if (doubled.length > 1) {
+    return dropStreetAddress(doubled.map((s) => s.replace(/-/g, ' ').trim()));
+  }
+
+  // A space-padded hyphen is unambiguously a separator too.
+  const spaced = tidy(input.split(/\s+[-–—]\s+/));
+  if (spaced.length > 1) return dropStreetAddress(spaced);
+
+  // A bare hyphen only separates when the string starts with a country or a
+  // state, which is exactly the shape Workday emits.
+  const dashed = tidy(input.split('-'));
+  if (dashed.length > 1 && (asCountryName(dashed[0]) || STATE_CODES.has(dashed[0].toUpperCase()))) {
+    return dropStreetAddress(dashed);
+  }
+
+  return [input.trim()];
+}
+
+/** Workday sometimes appends the office's street address as a final segment. */
+function dropStreetAddress(segments: string[]): string[] {
+  if (segments.length < 3) return segments;
+  const kept = segments.filter((s) => !/\d{3,}/.test(s));
+  return kept.length >= 2 ? kept : segments;
+}
+
+/**
+ * Put the narrowest part first.
+ *
+ * Workday and several other enterprise sources order locations broadest-first
+ * ("US, CA, Santa Clara"); the rest of the pipeline, and everything a reader
+ * expects, is city-first. Only flip when the string clearly starts with a
+ * country or state and doesn't already end with one — otherwise "Mexico, MO"
+ * (the town in Missouri) would be reversed into a listing in Mexico.
+ */
+function orderCityFirst(segments: string[]): string[] {
+  if (segments.length < 2) return segments;
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  const isPlaceCode = (s: string) => Boolean(asCountryName(s)) || STATE_CODES.has(s.toUpperCase());
+  if (isPlaceCode(first) && !isPlaceCode(last)) return [...segments].reverse();
+  return segments;
 }
 
 function titleCaseLoose(s: string): string {
@@ -183,7 +277,7 @@ function splitLocation(loc: string): { city: string | null; region: string | nul
     };
   }
 
-  const asCountry = COUNTRY_ALIASES[last.toLowerCase()] ?? (isKnownCountry(last) ? last : null);
+  const asCountry = asCountryName(last);
   if (asCountry) {
     return {
       city: parts.length > 1 ? parts[0] : null,
