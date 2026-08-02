@@ -47,10 +47,10 @@ This is the hard part of an internship aggregator, so it's worth being explicit
 about the guarantees. Four independent mechanisms keep closed roles out:
 
 1. **Live boards as the source of truth.** Most listings come straight from a
-   company's own applicant-tracking system (Greenhouse, Lever, Ashby,
-   SmartRecruiters, Workable). A role is served by those APIs only while the
-   board is accepting applications, so presence in the feed *is* evidence it's
-   open.
+   company's own applicant-tracking system (Workday, Greenhouse, Oracle Cloud
+   Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and others).
+   A role is served by those APIs only while the board is accepting
+   applications, so presence in the feed *is* evidence it's open.
 
 2. **Delisting reconciliation.** After each sync, any listing a source no longer
    carries is marked closed. Critically, this only applies to sources that
@@ -74,9 +74,10 @@ unless you explicitly ask for the archive.
 
 Two schedulers keep the shared catalog current; either alone is enough:
 
-- **GitHub Actions** (`.github/workflows/sync.yml`) — every 4 hours it fetches
-  every feed plus a rotating slice of ~1,200 company boards, reconciles
-  openness, merges duplicates, and link-checks 500 listings. It needs one
+- **GitHub Actions** (`.github/workflows/sync.yml`) — every 2 hours it fetches
+  every feed plus a rotating slice of 900 company boards, reconciles openness,
+  merges duplicates, and link-checks 500 listings. With several thousand boards
+  tracked, that walks the whole set about every day and a half. It needs one
   repository secret: `SUPABASE_DB_URL`.
 - **Vercel Cron** (`vercel.json` → `/api/cron/sync`) — a smaller daily pass that
   runs on the deployment itself. Enable it by setting a `CRON_SECRET` env var
@@ -90,20 +91,29 @@ There's also a "Sync now" button on the Sources page for any signed-in user.
 
 | Source | What it provides |
 | --- | --- |
-| Company ATS boards | Greenhouse, Lever, Ashby, SmartRecruiters, Workable — full descriptions, structured pay, real deadlines |
-| Community lists | The SimplifyJobs and vanshb03 internship repos — very broad coverage with per-listing active flags |
+| **Workday** | About half of all large-employer postings on the internet. Northrop Grumman, Boeing, RTX, NVIDIA, Intel, CVS Health, Analog Devices, Airbus, Accenture, ASML and ~1,700 more tenants |
+| **Oracle Cloud Recruiting** | Goldman Sachs, JPMorgan Chase, Texas Instruments, Honeywell, Cummins, American Express and ~180 more |
+| Greenhouse / Ashby / Lever | Startups and mid-size tech — full descriptions, structured pay, real deadlines |
+| SmartRecruiters / Workable | Visa, ServiceNow, Bosch, Experian and European employers |
+| Rippling / BambooHR / Breezy / Personio | The long tail of smaller employers |
+| Amazon | `amazon.jobs` directly — several thousand student roles worldwide |
+| Eightfold | Netflix and other tenants that leave their jobs API open |
+| Community lists | The SimplifyJobs (internship + new-grad) and vanshb03 repos — broad coverage with per-listing active flags |
 | Public boards | RemoteOK, Jobicy, Arbeitnow — remote and European roles |
 
-**The source list grows itself.** Every sync reads the apply links it encounters
-and starts tracking any employer board it recognizes. The seed list ships ~170
-boards verified live (`npm run verify-seeds` re-checks them); the community
-feeds typically discover **1,000+ more** on the first run. You can also paste
-any posting URL on the Sources page to add a board by hand.
+**The source list grows itself, and that is the main engine.** Every sync reads
+the apply links it encounters and starts tracking any employer board it
+recognizes — across all twelve providers above. The seed list ships ~370 boards
+each confirmed to return live internships (`npm run verify-seeds` re-checks
+them); the community archives name roughly **4,000 employer boards**, and the
+discovery pass registers them on the first full run. You can also paste any
+posting URL on the Sources page to add a board by hand.
 
 ```bash
 npm run sync                          # everything (caps company boards per run)
 npm run sync -- --kinds github        # just the community lists — fast
-npm run sync -- --max-boards 400      # touch more company boards this run
+npm run sync -- --max-boards 900      # touch more company boards this run
+npm run sync -- --kinds workday       # just the Workday tenants
 npm run sync -- --only greenhouse:figma
 npm run sync -- --verify 200          # sync, then link-check 200 listings
 npm run verify -- 500                 # link-check only

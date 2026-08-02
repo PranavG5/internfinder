@@ -112,6 +112,35 @@ const SYMBOL = '\\$|£|€|₹|¥|₩|C\\$|A\\$|R\\$';
 const CODE = 'USD|GBP|EUR|CAD|AUD|INR|JPY|KRW|CHF|SGD|BRL|MXN|SEK|NOK|DKK|PLN|ZAR';
 const NUM = '\\d{1,3}(?:,\\d{3})*(?:\\.\\d{1,2})?k?|\\d+(?:\\.\\d{1,2})?k?';
 
+/**
+ * Units that make a number a quantity rather than an amount of money.
+ * Without this, "commit to 4–5 days per week" reads as a weekly pay range and
+ * lands in the catalog as "$17.38–21.73 / month".
+ */
+const NON_MONEY_UNIT =
+  /^\s*(?:%|percent|days?|hrs?|hours?|weeks?|months?|years?|yrs?|semesters?|quarters?|terms?|credits?|people|employees|students|interns?|positions?|openings?|roles?|times?|x|pts?|points?|gpa)\b/i;
+
+/**
+ * Sanity floors for a figure with no currency symbol or code next to it.
+ *
+ * A marked amount is taken at face value — "€38,900.00 EUR Annually" is
+ * unambiguous. An unmarked one has to at least be the right size for the period
+ * it claims, which is what separates real pay from a stray number.
+ */
+const PLAUSIBLE: Record<NonNullable<CompResult['period']>, [min: number, max: number]> = {
+  hour: [4, 500],
+  month: [400, 100_000],
+  year: [8_000, 2_000_000],
+  stipend: [100, 500_000],
+};
+
+function looksLikeMoney(amount: number, period: CompResult['period'], marked: boolean): boolean {
+  if (marked) return true;
+  if (!period) return false;
+  const [low, high] = PLAUSIBLE[period];
+  return amount >= low && amount <= high;
+}
+
 function matchRange(text: string): CompResult | null {
   // Ranges first, so we don't grab only the lower bound.
   const rangeRe = new RegExp(
@@ -133,12 +162,17 @@ function matchRange(text: string): CompResult | null {
     const [, code1, sym1, a, sym2, b, code2, tail = ''] = m;
     // Require some currency marker or an explicit period, else it's just numbers.
     const period = periodFrom(tail);
-    if (!sym1 && !sym2 && !code1 && !code2 && !period) continue;
+    const marked = Boolean(sym1 || sym2 || code1 || code2);
+    if (!marked && !period) continue;
+    // "4–5 days per week" has a period but counts days, not dollars.
+    if (!marked && NON_MONEY_UNIT.test(tail)) continue;
     const min = parseAmount(a);
     const max = parseAmount(b);
     if (min == null || max == null || max < min) continue;
     const currency = resolveCurrency(sym1 ?? sym2, code1 ?? code2);
-    candidates.push(finalize(min, max, period, currency, m[0]));
+    const hit = finalize(min, max, period, currency, m[0]);
+    if (!looksLikeMoney(hit.max ?? hit.min!, hit.period, marked)) continue;
+    candidates.push(hit);
   }
 
   if (candidates.length === 0) {
@@ -146,6 +180,7 @@ function matchRange(text: string): CompResult | null {
       const [, code1, sym, a, code2, tail = ''] = m;
       const amount = parseAmount(a);
       if (amount == null) continue;
+      if (NON_MONEY_UNIT.test(tail)) continue;
       const period = periodFrom(tail);
       const currency = resolveCurrency(sym, code1 ?? code2);
       // A bare "$5" with no period is noise; require a period or a plausible size.
@@ -159,9 +194,9 @@ function matchRange(text: string): CompResult | null {
       const [, a, code] = m;
       const amount = parseAmount(a);
       if (amount == null) continue;
-      candidates.push(
-        finalize(amount, amount, periodFrom(m[0]), resolveCurrency(undefined, code), m[0]),
-      );
+      const hit = finalize(amount, amount, periodFrom(m[0]), resolveCurrency(undefined, code), m[0]);
+      if (!looksLikeMoney(hit.max ?? amount, hit.period, Boolean(code))) continue;
+      candidates.push(hit);
     }
   }
 

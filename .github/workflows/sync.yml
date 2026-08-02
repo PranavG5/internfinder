@@ -1,9 +1,13 @@
 # Keeps the internship catalog fresh.
 #
-# Every 4 hours: fetch every feed and a rotating slice of company boards,
+# Every 2 hours: fetch every feed and a rotating slice of company boards,
 # reconcile which listings are still open (delistings, passed deadlines, stale
 # postings), merge duplicates, and link-check the least-recently-verified
 # listings so dead application links get closed.
+#
+# The catalog tracks several thousand employer boards, so no single run touches
+# them all. Boards are picked least-recently-synced first and round-robin across
+# providers, which walks the whole set roughly every day and a half.
 #
 # Requires one repository secret:
 #   SUPABASE_DB_URL — the Supabase Postgres connection string
@@ -13,15 +17,18 @@ name: Sync internship catalog
 
 on:
   schedule:
-    - cron: '17 */4 * * *'
+    - cron: '17 */2 * * *'
   workflow_dispatch:
     inputs:
       max_boards:
         description: 'Company boards to touch this run'
-        default: '400'
+        default: '900'
       verify:
         description: 'Listings to link-check afterwards'
         default: '500'
+      kinds:
+        description: 'Restrict to these source kinds (comma separated, blank for all)'
+        default: ''
 
 concurrency:
   group: catalog-sync
@@ -30,7 +37,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -46,6 +53,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           npm run sync -- \
-            --max-boards "${{ github.event.inputs.max_boards || '400' }}" \
-            --concurrency 10 \
+            --max-boards "${{ github.event.inputs.max_boards || '900' }}" \
+            --concurrency 14 \
+            ${{ github.event.inputs.kinds && format('--kinds {0}', github.event.inputs.kinds) || '' }} \
             --verify "${{ github.event.inputs.verify || '500' }}"

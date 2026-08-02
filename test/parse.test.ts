@@ -149,6 +149,25 @@ describe('parseComp', () => {
     assert.equal(c.isPaid, 1);
     assert.equal(c.min, null);
   });
+
+  it('does not read a schedule commitment as a pay range', () => {
+    // "per week" is a pay period, but 4–5 here counts days. Read as money this
+    // became "$17.38–21.73 / month" and polluted the minimum-pay filter.
+    const c = parseComp('Interns must be available 4–5 days per week for at least 6 months.');
+    assert.equal(c.min, null);
+    assert.equal(c.max, null);
+  });
+
+  it('does not read hours-per-week or course credits as pay', () => {
+    assert.equal(parseComp('You will work 20 - 40 hours per week.').min, null);
+    assert.equal(parseComp('Earn 3 to 6 credits per semester.').min, null);
+  });
+
+  it('still accepts a real weekly rate', () => {
+    const c = parseComp('Compensation: $1,000 - $1,200 per week.');
+    assert.equal(c.period, 'month');
+    assert.equal(c.min, 4345);
+  });
 });
 
 describe('parseGpa', () => {

@@ -26,6 +26,8 @@ export interface FetchOptions {
   headers?: Record<string, string>;
   /** Treat these statuses as "empty result" rather than an error. */
   tolerate?: number[];
+  /** JSON body to POST. Omit for a GET. */
+  body?: unknown;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -65,10 +67,13 @@ async function fetchOnce(url: string, opts: FetchOptions): Promise<Response> {
     return await fetch(url, {
       signal: controller.signal,
       redirect: 'follow',
+      method: opts.body === undefined ? 'GET' : 'POST',
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
+        ...(opts.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...opts.headers,
       },
     });
@@ -127,6 +132,35 @@ export async function getJson<T>(url: string, opts: FetchOptions = {}): Promise<
     }
     throw lastError ?? new Error(`Failed to fetch ${url}`);
   });
+}
+
+/** GET a URL and return the raw body. For feeds that publish XML rather than JSON. */
+export async function fetchText(url: string, opts: FetchOptions = {}): Promise<string | null> {
+  const tolerate = new Set(opts.tolerate ?? [404, 403, 410]);
+
+  return withHostQueue(url, async () => {
+    const res = await fetchOnce(url, {
+      ...opts,
+      headers: { Accept: 'application/xml, text/xml, text/plain, */*', ...opts.headers },
+    });
+    if (tolerate.has(res.status)) return null;
+    if (!res.ok) throw new HttpError(`HTTP ${res.status}`, res.status, url);
+    return res.text();
+  });
+}
+
+/**
+ * POST a JSON body and parse the JSON response.
+ *
+ * Several of the biggest ATS APIs (Workday above all) only answer to POST, and
+ * they get the same queueing, retry and timeout treatment as everything else.
+ */
+export async function postJson<T>(
+  url: string,
+  body: unknown,
+  opts: FetchOptions = {},
+): Promise<T | null> {
+  return getJson<T>(url, { ...opts, body });
 }
 
 /**

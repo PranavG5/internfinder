@@ -10,6 +10,10 @@
 import { SEED_BOARDS } from '../src/lib/sources/seed';
 import { fetchAshby, fetchGreenhouse, fetchLever, fetchSmartRecruiters } from '../src/lib/sources/ats';
 import { fetchWorkable } from '../src/lib/sources/workable';
+import { fetchBamboo, fetchBreezy, fetchPersonio, fetchRippling } from '../src/lib/sources/bigtech';
+import { fetchEightfold } from '../src/lib/sources/eightfold';
+import { fetchOracle } from '../src/lib/sources/oracle';
+import { fetchWorkday } from '../src/lib/sources/workday';
 import { mapPool } from '../src/lib/sources/http';
 
 async function fetchCount(kind: string, token: string, label: string): Promise<number> {
@@ -24,6 +28,20 @@ async function fetchCount(kind: string, token: string, label: string): Promise<n
       return (await fetchSmartRecruiters(token, label)).length;
     case 'workable':
       return (await fetchWorkable(token, label)).length;
+    case 'workday':
+      return (await fetchWorkday(token, label)).length;
+    case 'oracle':
+      return (await fetchOracle(token, label)).length;
+    case 'eightfold':
+      return (await fetchEightfold(token, label)).length;
+    case 'rippling':
+      return (await fetchRippling(token, label)).length;
+    case 'bamboohr':
+      return (await fetchBamboo(token, label)).length;
+    case 'breezy':
+      return (await fetchBreezy(token, label)).length;
+    case 'personio':
+      return (await fetchPersonio(token, label)).length;
     default:
       throw new Error(`unknown kind ${kind}`);
   }

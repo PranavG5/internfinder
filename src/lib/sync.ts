@@ -2,9 +2,19 @@ import { exec, nowSec, one, q } from './db';
 import { normalize, type NormalizedListing, type RawListing } from './parse';
 import { fetchAshby, fetchGreenhouse, fetchLever, fetchSmartRecruiters } from './sources/ats';
 import { fetchWorkable } from './sources/workable';
+import {
+  fetchAmazon,
+  fetchBamboo,
+  fetchBreezy,
+  fetchPersonio,
+  fetchRippling,
+} from './sources/bigtech';
+import { fetchEightfold } from './sources/eightfold';
+import { fetchOracle } from './sources/oracle';
+import { fetchWorkday } from './sources/workday';
 import { fetchArbeitnow, fetchGithubList, fetchJobicy, fetchRemoteOk } from './sources/feeds';
 import { checkLink, mapPool } from './sources/http';
-import { boardFromUrl, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
+import { boardFromUrl, fallbackLabel, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
 import { DAY } from './util';
 
 /**
@@ -130,12 +140,20 @@ async function listSources(opts: SyncOptions): Promise<SourceRow[]> {
   return rows;
 }
 
+/** Sources that belong to one employer, as opposed to a cross-company feed. */
 const BOARD_KINDS = new Set([
   'greenhouse',
   'lever',
   'ashby',
   'smartrecruiters',
   'workable',
+  'workday',
+  'oracle',
+  'eightfold',
+  'rippling',
+  'bamboohr',
+  'breezy',
+  'personio',
 ]);
 
 function isBoardKind(kind: string): boolean {
@@ -154,6 +172,22 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchSmartRecruiters(row.token, row.label);
     case 'workable':
       return fetchWorkable(row.token, row.label);
+    case 'workday':
+      return fetchWorkday(row.token, row.label);
+    case 'oracle':
+      return fetchOracle(row.token, row.label);
+    case 'eightfold':
+      return fetchEightfold(row.token, row.label);
+    case 'rippling':
+      return fetchRippling(row.token, row.label);
+    case 'bamboohr':
+      return fetchBamboo(row.token, row.label);
+    case 'breezy':
+      return fetchBreezy(row.token, row.label);
+    case 'personio':
+      return fetchPersonio(row.token, row.label);
+    case 'amazon':
+      return fetchAmazon();
     case 'jobicy':
       return fetchJobicy();
     case 'github':
@@ -322,8 +356,11 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
   };
 }
 
+/** Singleton feeds emit a bare kind as their source string; boards emit "kind:token". */
+const SINGLETON_KINDS = new Set(['remoteok', 'arbeitnow', 'jobicy', 'amazon']);
+
 function sourceKeyForRow(row: SourceRow): string {
-  if (row.kind === 'remoteok' || row.kind === 'arbeitnow' || row.kind === 'jobicy') return row.kind;
+  if (SINGLETON_KINDS.has(row.kind)) return row.kind;
   return `${row.kind}:${row.token}`;
 }
 
@@ -647,38 +684,42 @@ export async function markDuplicates(): Promise<number> {
  * company, so "k-id" would show up as "K Id" instead of the real name.
  */
 export async function discoverBoards(seen: { url: string; company?: string }[]): Promise<number> {
-  const found = new Map<string, { kind: string; token: string; label: string }>();
+  const found = new Map<string, { kind: string; token: string; label: string; fallback: string }>();
 
   for (const { url, company } of seen) {
     const board = boardFromUrl(url);
     if (!board) continue;
     const key = `${board.kind}:${board.token.toLowerCase()}`;
+    const fallback = fallbackLabel(board);
     const name = company?.trim();
     // A real company name always beats a slug-derived label.
-    if (name) found.set(key, { ...board, label: name });
-    else if (!found.has(key)) found.set(key, board);
+    if (name) found.set(key, { ...board, label: name, fallback });
+    else if (!found.has(key)) found.set(key, { ...board, fallback });
   }
   if (found.size === 0) return 0;
 
   const boards = [...found.values()];
   const now = nowSec();
+  const columns = (key: 'kind' | 'token' | 'label' | 'fallback') => boards.map((b) => b[key]);
 
   const added = await exec(
     `INSERT INTO source_configs (kind, token, label, enabled, created_at)
      SELECT kind, token, label, 1, ?
      FROM unnest(?::text[], ?::text[], ?::text[]) AS s(kind, token, label)
      ON CONFLICT (kind, token) DO NOTHING`,
-    [now, boards.map((b) => b.kind), boards.map((b) => b.token), boards.map((b) => b.label)],
+    [now, columns('kind'), columns('token'), columns('label')],
   );
 
-  // Backfill a better label onto boards we already track under a slug-derived name.
+  // Backfill a real employer name onto boards we only ever saw as a slug.
+  // This matters most for Workday and Oracle, whose tokens are hosting details
+  // ("ibqbjb.fa.ocs.oraclecloud.com/CX_1") rather than anything a human would
+  // recognize — and whose label becomes the company on every listing they own.
   await exec(
     `UPDATE source_configs sc SET label = s.label
-     FROM unnest(?::text[], ?::text[], ?::text[]) AS s(kind, token, label)
+     FROM unnest(?::text[], ?::text[], ?::text[], ?::text[]) AS s(kind, token, label, fallback)
      WHERE sc.kind = s.kind AND sc.token = s.token
-       AND lower(replace(sc.label, ' ', '')) = lower(replace(sc.token, '-', ''))
-       AND sc.label <> s.label`,
-    [boards.map((b) => b.kind), boards.map((b) => b.token), boards.map((b) => b.label)],
+       AND sc.label <> s.label AND sc.label = s.fallback`,
+    [columns('kind'), columns('token'), columns('label'), columns('fallback')],
   );
 
   return added;

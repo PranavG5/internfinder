@@ -41,6 +41,13 @@ const GITHUB_FEEDS: Record<string, { url: string; label: string }> = {
     url: 'https://raw.githubusercontent.com/vanshb03/Summer2026-Internships/dev/.github/scripts/listings.json',
     label: 'vanshb03 Summer 2026',
   },
+  // New-grad postings are mostly not internships and get filtered out on the
+  // way in — but the archive names ~2,600 employer job boards, and every one it
+  // reveals is a board the discovery pass can crawl for internships directly.
+  'simplify-newgrad': {
+    url: 'https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json',
+    label: 'SimplifyJobs New Grad',
+  },
 };
 
 export async function fetchGithubList(token: string): Promise<RawListing[]> {
