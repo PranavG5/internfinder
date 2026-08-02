@@ -35,7 +35,7 @@ export const BOARD_KINDS: BoardKind[] = [
 ];
 
 /** Cross-company feeds, which are configured once rather than per employer. */
-export const FEED_KINDS = ['github', 'amazon', 'remoteok', 'arbeitnow', 'jobicy'];
+export const FEED_KINDS = ['github', 'amazon', 'microsoft', 'remoteok', 'arbeitnow', 'jobicy'];
 
 /** Every source kind the pipeline knows how to fetch. */
 export const SOURCE_KINDS: string[] = [...BOARD_KINDS, ...FEED_KINDS];
@@ -56,6 +56,7 @@ export const KIND_LABELS: Record<string, string> = {
   personio: 'Personio',
   github: 'Community lists',
   amazon: 'Amazon',
+  microsoft: 'Microsoft',
   remoteok: 'RemoteOK',
   arbeitnow: 'Arbeitnow',
   jobicy: 'Jobicy',

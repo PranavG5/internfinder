@@ -6,6 +6,7 @@ import {
   fetchAmazon,
   fetchBamboo,
   fetchBreezy,
+  fetchMicrosoft,
   fetchPersonio,
   fetchRippling,
 } from './sources/bigtech';
@@ -15,6 +16,7 @@ import { fetchWorkday } from './sources/workday';
 import { fetchArbeitnow, fetchGithubList, fetchJobicy, fetchRemoteOk } from './sources/feeds';
 import { checkLink, mapPool } from './sources/http';
 import { boardFromUrl, fallbackLabel, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
+import { BOARD_KINDS } from './types';
 import { DAY } from './util';
 
 /**
@@ -141,23 +143,10 @@ async function listSources(opts: SyncOptions): Promise<SourceRow[]> {
 }
 
 /** Sources that belong to one employer, as opposed to a cross-company feed. */
-const BOARD_KINDS = new Set([
-  'greenhouse',
-  'lever',
-  'ashby',
-  'smartrecruiters',
-  'workable',
-  'workday',
-  'oracle',
-  'eightfold',
-  'rippling',
-  'bamboohr',
-  'breezy',
-  'personio',
-]);
+const PER_EMPLOYER_KINDS = new Set<string>(BOARD_KINDS);
 
 function isBoardKind(kind: string): boolean {
-  return BOARD_KINDS.has(kind);
+  return PER_EMPLOYER_KINDS.has(kind);
 }
 
 async function fetchSource(row: SourceRow): Promise<RawListing[]> {
@@ -188,6 +177,8 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchPersonio(row.token, row.label);
     case 'amazon':
       return fetchAmazon();
+    case 'microsoft':
+      return fetchMicrosoft();
     case 'jobicy':
       return fetchJobicy();
     case 'github':
@@ -357,7 +348,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 }
 
 /** Singleton feeds emit a bare kind as their source string; boards emit "kind:token". */
-const SINGLETON_KINDS = new Set(['remoteok', 'arbeitnow', 'jobicy', 'amazon']);
+const SINGLETON_KINDS = new Set(['remoteok', 'arbeitnow', 'jobicy', 'amazon', 'microsoft']);
 
 function sourceKeyForRow(row: SourceRow): string {
   if (SINGLETON_KINDS.has(row.kind)) return row.kind;

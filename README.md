@@ -96,7 +96,7 @@ There's also a "Sync now" button on the Sources page for any signed-in user.
 | Greenhouse / Ashby / Lever | Startups and mid-size tech — full descriptions, structured pay, real deadlines |
 | SmartRecruiters / Workable | Visa, ServiceNow, Bosch, Experian and European employers |
 | Rippling / BambooHR / Breezy / Personio | The long tail of smaller employers |
-| Amazon | `amazon.jobs` directly — several thousand student roles worldwide |
+| Amazon / Microsoft | `amazon.jobs` and Microsoft's own careers search API — the two big-tech employers that publish one |
 | Eightfold | Netflix and other tenants that leave their jobs API open |
 | Community lists | The SimplifyJobs (internship + new-grad) and vanshb03 repos — broad coverage with per-listing active flags |
 | Public boards | RemoteOK, Jobicy, Arbeitnow — remote and European roles |
