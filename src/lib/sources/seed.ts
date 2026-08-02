@@ -8,23 +8,15 @@
  * anyone editing this file.
  */
 
+import type { BoardKind } from '../types';
 import { encodeEightfoldToken, eightfoldBoardFromUrl } from './eightfold';
 import { encodeOracleToken, oracleBoardFromUrl } from './oracle';
 import { encodeWorkdayToken, workdayBoardFromUrl } from './workday';
 
-export type BoardKind =
-  | 'greenhouse'
-  | 'lever'
-  | 'ashby'
-  | 'smartrecruiters'
-  | 'workable'
-  | 'workday'
-  | 'oracle'
-  | 'eightfold'
-  | 'rippling'
-  | 'bamboohr'
-  | 'breezy'
-  | 'personio';
+// The kind vocabulary lives with the shared types so client components can
+// name a provider without importing the adapters that fetch from it.
+export type { BoardKind } from '../types';
+export { BOARD_KINDS, FEED_KINDS, KIND_LABELS, SOURCE_KINDS } from '../types';
 
 export interface SeedBoard {
   kind: BoardKind;

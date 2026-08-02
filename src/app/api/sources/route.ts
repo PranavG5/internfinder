@@ -1,14 +1,9 @@
 import { fail, handler, ok, readJson, requireUserId } from '@/lib/api';
 import { exec, nowSec, one, q } from '@/lib/db';
-import { boardFromUrl } from '@/lib/sources/seed';
+import { boardFromUrl, KIND_LABELS, SOURCE_KINDS } from '@/lib/sources/seed';
 import { ensureSeedSources } from '@/lib/sync';
 
 export const dynamic = 'force-dynamic';
-
-const KINDS = [
-  'greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable',
-  'github', 'remoteok', 'arbeitnow', 'jobicy',
-];
 
 /** GET /api/sources — every configured source with its last sync outcome. */
 export const GET = handler(async () => {
@@ -45,17 +40,17 @@ export const POST = handler(async (request: Request) => {
   if (typeof body.url === 'string' && body.url.trim()) {
     const detected = boardFromUrl(body.url.trim());
     if (!detected) {
-      return fail(
-        'Could not recognize that URL. Supported boards: Greenhouse, Lever, Ashby, SmartRecruiters, Workable.',
-        422,
-      );
+      const providers = SOURCE_KINDS.filter((k) => KIND_LABELS[k] && k !== 'github')
+        .map((k) => KIND_LABELS[k])
+        .join(', ');
+      return fail(`Could not recognize that URL. Supported boards: ${providers}.`, 422);
     }
     kind = detected.kind;
     token = detected.token;
     label ||= detected.label;
   }
 
-  if (!KINDS.includes(kind)) return fail(`kind must be one of: ${KINDS.join(', ')}`, 422);
+  if (!SOURCE_KINDS.includes(kind)) return fail(`kind must be one of: ${SOURCE_KINDS.join(', ')}`, 422);
   if (!token) return fail('token is required', 422);
   label ||= token;
 

@@ -3,6 +3,64 @@
 export const SEASONS = ['Summer', 'Fall', 'Winter', 'Spring', 'Year-round', 'Unknown'] as const;
 export type Season = (typeof SEASONS)[number];
 
+/** Job-board providers the sync pipeline can read, and how to name them. */
+export type BoardKind =
+  | 'greenhouse'
+  | 'lever'
+  | 'ashby'
+  | 'smartrecruiters'
+  | 'workable'
+  | 'workday'
+  | 'oracle'
+  | 'eightfold'
+  | 'rippling'
+  | 'bamboohr'
+  | 'breezy'
+  | 'personio';
+
+/** Per-employer board providers, in the order they matter for coverage. */
+export const BOARD_KINDS: BoardKind[] = [
+  'workday',
+  'greenhouse',
+  'oracle',
+  'ashby',
+  'lever',
+  'smartrecruiters',
+  'workable',
+  'eightfold',
+  'rippling',
+  'bamboohr',
+  'breezy',
+  'personio',
+];
+
+/** Cross-company feeds, which are configured once rather than per employer. */
+export const FEED_KINDS = ['github', 'amazon', 'remoteok', 'arbeitnow', 'jobicy'];
+
+/** Every source kind the pipeline knows how to fetch. */
+export const SOURCE_KINDS: string[] = [...BOARD_KINDS, ...FEED_KINDS];
+
+/** Human-readable provider names, shared by the API and the Sources page. */
+export const KIND_LABELS: Record<string, string> = {
+  workday: 'Workday',
+  greenhouse: 'Greenhouse',
+  oracle: 'Oracle Cloud Recruiting',
+  ashby: 'Ashby',
+  lever: 'Lever',
+  smartrecruiters: 'SmartRecruiters',
+  workable: 'Workable',
+  eightfold: 'Eightfold',
+  rippling: 'Rippling',
+  bamboohr: 'BambooHR',
+  breezy: 'Breezy',
+  personio: 'Personio',
+  github: 'Community lists',
+  amazon: 'Amazon',
+  remoteok: 'RemoteOK',
+  arbeitnow: 'Arbeitnow',
+  jobicy: 'Jobicy',
+};
+
 export const LOCATION_TYPES = ['remote', 'hybrid', 'onsite', 'unknown'] as const;
 export type LocationType = (typeof LOCATION_TYPES)[number];
 

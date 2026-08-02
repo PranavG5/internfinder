@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EmptyState, PageHeader, SectionTitle, StatTile } from './ui';
 import { formatDateTime, relativeTime } from '@/lib/util';
+import { KIND_LABELS } from '@/lib/sources/seed';
 
 interface SourceRow {
   id: number;
@@ -40,15 +41,6 @@ interface CatalogStats {
   sourceCount: number;
 }
 
-const KIND_LABELS: Record<string, string> = {
-  github: 'Community lists',
-  greenhouse: 'Greenhouse',
-  lever: 'Lever',
-  ashby: 'Ashby',
-  smartrecruiters: 'SmartRecruiters',
-  remoteok: 'RemoteOK',
-  arbeitnow: 'Arbeitnow',
-};
 
 export function SourcesClient() {
   const [sources, setSources] = useState<SourceRow[]>([]);
@@ -268,8 +260,9 @@ export function SourcesClient() {
           <SectionTitle>Add a company&rsquo;s job board</SectionTitle>
           <form className="card space-y-2 p-4" onSubmit={addSource}>
             <p className="text-[0.8125rem]" style={{ color: 'var(--ink-secondary)' }}>
-              Paste any Greenhouse, Lever, Ashby, or SmartRecruiters posting URL and the board behind
-              it gets tracked from then on.
+              Paste a posting URL from any supported provider — Workday, Greenhouse, Oracle Cloud
+              Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and more — and the board
+              behind it gets tracked from then on.
             </p>
             <div className="flex flex-wrap gap-2">
               <input
