@@ -1,5 +1,5 @@
-import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
-import { getDb } from '@/lib/db';
+import { fail, handler, ok, readJson, requireUserId } from '@/lib/api';
+import { one } from '@/lib/db';
 import { createApplication, listApplications, type ApplicationFilters } from '@/lib/repo';
 import type { Internship } from '@/lib/types';
 
@@ -7,6 +7,9 @@ export const dynamic = 'force-dynamic';
 
 /** GET /api/applications — the tracker list. */
 export const GET = handler(async (request: Request) => {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
   const params = new URL(request.url).searchParams;
   const filters: ApplicationFilters = {
     status: params.getAll('status').flatMap((s) => s.split(',')).filter(Boolean),
@@ -14,7 +17,7 @@ export const GET = handler(async (request: Request) => {
     q: params.get('q') ?? undefined,
     sort: (params.get('sort') as ApplicationFilters['sort']) ?? undefined,
   };
-  return ok({ applications: listApplications(filters) });
+  return ok({ applications: await listApplications(auth, filters) });
 });
 
 /**
@@ -25,11 +28,10 @@ export const GET = handler(async (request: Request) => {
  * one click and stays linked to the listing.
  */
 export const POST = handler(async (request: Request) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const body = await readJson(request);
-  const db = getDb();
 
   let company = typeof body.company === 'string' ? body.company.trim() : '';
   let role = typeof body.role === 'string' ? body.role.trim() : '';
@@ -37,15 +39,14 @@ export const POST = handler(async (request: Request) => {
 
   const prefill: Record<string, unknown> = {};
   if (internshipId) {
-    const listing = db.prepare('SELECT * FROM internships WHERE id = ?').get(internshipId) as
-      | Internship
-      | undefined;
+    const listing = await one<Internship>('SELECT * FROM internships WHERE id = ?', [internshipId]);
     if (!listing) return fail('Internship not found', 404);
 
     // Refuse to silently create a second tracker row for the same listing.
-    const existing = db
-      .prepare('SELECT id FROM applications WHERE internship_id = ?')
-      .get(internshipId) as { id: number } | undefined;
+    const existing = await one<{ id: number }>(
+      'SELECT id FROM applications WHERE internship_id = ? AND user_id = ?',
+      [internshipId, auth],
+    );
     if (existing && body.allow_duplicate !== true) {
       return fail('You are already tracking this internship', 409, {
         application_id: existing.id,
@@ -65,7 +66,7 @@ export const POST = handler(async (request: Request) => {
 
   if (!company || !role) return fail('company and role are required', 422);
 
-  const application = createApplication({
+  const application = await createApplication(auth, {
     ...prefill,
     ...body,
     internship_id: internshipId,

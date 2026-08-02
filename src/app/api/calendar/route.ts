@@ -1,17 +1,35 @@
-import { handler } from '@/lib/api';
-import { getDb } from '@/lib/db';
+import { fail, handler } from '@/lib/api';
+import { getUserId } from '@/lib/auth';
+import { one, q } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/calendar — an iCalendar feed of deadlines and interviews.
+ * GET /api/calendar?token=… — an iCalendar feed of deadlines and interviews.
  *
  * Subscribe to this URL from Google Calendar, Apple Calendar, or Outlook and
- * every deadline you're tracking shows up alongside your classes.
+ * every deadline you're tracking shows up alongside your classes. Calendar
+ * apps can't send cookies, so the feed authenticates with the per-account
+ * `calendar_token` embedded in the URL (shown on the Calendar page). A browser
+ * session works too.
  */
 export const GET = handler(async (request: Request) => {
-  const db = getDb();
-  const origin = new URL(request.url).origin;
+  const url = new URL(request.url);
+  const origin = url.origin;
+
+  // Token first (calendar apps), session second (browser).
+  let userId: string | null = null;
+  const token = url.searchParams.get('token');
+  if (token) {
+    const row = await one<{ user_id: string }>(
+      'SELECT user_id FROM profiles WHERE calendar_token = ?',
+      [token],
+    );
+    userId = row?.user_id ?? null;
+  }
+  userId ??= await getUserId();
+  if (!userId) return fail('This calendar feed needs the personal token from your Calendar page.', 401);
+
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -23,19 +41,18 @@ export const GET = handler(async (request: Request) => {
   ];
 
   // Application deadlines, as all-day events.
-  const deadlines = db
-    .prepare(
-      `SELECT id, company, role, deadline, status, apply_url FROM applications
-       WHERE deadline IS NOT NULL AND archived = 0`,
-    )
-    .all() as {
+  const deadlines = await q<{
     id: number;
     company: string;
     role: string;
     deadline: number;
     status: string;
     apply_url: string | null;
-  }[];
+  }>(
+    `SELECT id, company, role, deadline, status, apply_url FROM applications
+     WHERE user_id = ? AND deadline IS NOT NULL AND archived = 0`,
+    [userId],
+  );
 
   for (const row of deadlines) {
     lines.push(
@@ -66,14 +83,7 @@ export const GET = handler(async (request: Request) => {
   }
 
   // Scheduled interviews, as timed events.
-  const interviews = db
-    .prepare(
-      `SELECT iv.id, iv.kind, iv.round, iv.scheduled_at, iv.duration_min, iv.location,
-              iv.interviewer, a.company, a.role, a.id AS application_id
-       FROM interviews iv JOIN applications a ON a.id = iv.application_id
-       WHERE iv.scheduled_at IS NOT NULL`,
-    )
-    .all() as {
+  const interviews = await q<{
     id: number;
     kind: string;
     round: number;
@@ -84,7 +94,13 @@ export const GET = handler(async (request: Request) => {
     company: string;
     role: string;
     application_id: number;
-  }[];
+  }>(
+    `SELECT iv.id, iv.kind, iv.round, iv.scheduled_at, iv.duration_min, iv.location,
+            iv.interviewer, a.company, a.role, a.id AS application_id
+     FROM interviews iv JOIN applications a ON a.id = iv.application_id
+     WHERE iv.user_id = ? AND iv.scheduled_at IS NOT NULL`,
+    [userId],
+  );
 
   for (const row of interviews) {
     const duration = (row.duration_min ?? 60) * 60;
@@ -116,13 +132,12 @@ export const GET = handler(async (request: Request) => {
   }
 
   // Open tasks with due dates.
-  const tasks = db
-    .prepare(
-      `SELECT t.id, t.title, t.due_at, a.company FROM tasks t
-       LEFT JOIN applications a ON a.id = t.application_id
-       WHERE t.done = 0 AND t.due_at IS NOT NULL`,
-    )
-    .all() as { id: number; title: string; due_at: number; company: string | null }[];
+  const tasks = await q<{ id: number; title: string; due_at: number; company: string | null }>(
+    `SELECT t.id, t.title, t.due_at, a.company FROM tasks t
+     LEFT JOIN applications a ON a.id = t.application_id
+     WHERE t.user_id = ? AND t.done = 0 AND t.due_at IS NOT NULL`,
+    [userId],
+  );
 
   for (const row of tasks) {
     lines.push(

@@ -9,13 +9,7 @@
  *   npm run verify -- 500       # 500 listings
  *   npm run verify -- 200 --concurrency 8
  */
-/**
- * CLI scripts always own the database file, even when VERCEL=1 marks the
- * runtime as read-only — the whole point of the build step is to write the
- * catalog before the serverless runtime takes over.
- */
-process.env.INTERNFINDER_READONLY = '0';
-
+import { closePool } from '../src/lib/db';
 import { verifyLinks } from '../src/lib/sync';
 
 async function main() {
@@ -38,6 +32,8 @@ async function main() {
   console.log(`  Still open   : ${result.alive}`);
   console.log(`  Closed       : ${result.closed}`);
   console.log(`  Unreachable  : ${result.errors} (left alone — a network blip is not a closure)`);
+
+  await closePool();
 }
 
 main().catch((err) => {

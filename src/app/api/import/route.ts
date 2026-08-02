@@ -1,5 +1,5 @@
-import { fail, handler, ok, readOnlyBlock } from '@/lib/api';
-import { getDb } from '@/lib/db';
+import { fail, handler, ok, requireUserId } from '@/lib/api';
+import { exec, one, q } from '@/lib/db';
 import { createApplication, updateProfile } from '@/lib/repo';
 import { APP_STATUSES, type AppStatus } from '@/lib/types';
 import { fromDateInput, parseCsv } from '@/lib/util';
@@ -16,20 +16,19 @@ export const dynamic = 'force-dynamic';
  * treated as the identity — so re-importing the same file is safe.
  */
 export const POST = handler(async (request: Request) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const contentType = request.headers.get('content-type') ?? '';
   const raw = await request.text();
   if (!raw.trim()) return fail('Request body was empty', 422);
 
-  const db = getDb();
   const existing = new Set(
     (
-      db.prepare('SELECT company, role FROM applications').all() as {
-        company: string;
-        role: string;
-      }[]
+      await q<{ company: string; role: string }>(
+        'SELECT company, role FROM applications WHERE user_id = ?',
+        [auth],
+      )
     ).map((r) => key(r.company, r.role)),
   );
 
@@ -55,7 +54,7 @@ export const POST = handler(async (request: Request) => {
         continue;
       }
 
-      createApplication({
+      await createApplication(auth, {
         company,
         role,
         status: normalizeStatus(pick(row, ['status', 'Status'])),
@@ -104,7 +103,7 @@ export const POST = handler(async (request: Request) => {
       skipped++;
       continue;
     }
-    const inserted = createApplication({
+    const inserted = await createApplication(auth, {
       ...app,
       company,
       role,
@@ -118,54 +117,59 @@ export const POST = handler(async (request: Request) => {
 
   // Child records, remapped onto the newly created applications.
   const childCounts = {
-    events: copyChildren(payload.application_events, 'application_events', idMap, [
+    events: await copyChildren(auth, payload.application_events, 'application_events', idMap, [
       'type', 'from_status', 'to_status', 'title', 'body', 'occurred_at', 'created_at',
     ]),
-    interviews: copyChildren(payload.interviews, 'interviews', idMap, [
+    interviews: await copyChildren(auth, payload.interviews, 'interviews', idMap, [
       'round', 'kind', 'scheduled_at', 'duration_min', 'location', 'interviewer',
       'prep_notes', 'outcome', 'feedback', 'created_at', 'updated_at',
     ]),
-    contacts: copyChildren(payload.contacts, 'contacts', idMap, [
+    contacts: await copyChildren(auth, payload.contacts, 'contacts', idMap, [
       'name', 'company', 'role', 'email', 'phone', 'linkedin', 'relationship', 'notes',
       'last_contacted_at', 'created_at',
     ]),
-    offers: copyChildren(payload.offers, 'offers', idMap, [
+    offers: await copyChildren(auth, payload.offers, 'offers', idMap, [
       'pay_rate', 'pay_period', 'currency', 'hours_per_week', 'weeks', 'signing_bonus',
       'housing_stipend', 'relocation', 'other_perks', 'location', 'col_index',
       'start_date', 'respond_by', 'status', 'notes', 'created_at', 'updated_at',
     ]),
-    tasks: copyChildren(payload.tasks, 'tasks', idMap, [
+    tasks: await copyChildren(auth, payload.tasks, 'tasks', idMap, [
       'title', 'done', 'due_at', 'created_at', 'completed_at',
     ]),
   };
 
   if (payload.profile && typeof payload.profile === 'object') {
-    updateProfile(payload.profile as Record<string, unknown>);
+    await updateProfile(auth, payload.profile as Record<string, unknown>);
   }
 
   if (Array.isArray(payload.bookmarks)) {
-    const stmt = db.prepare(
-      'INSERT INTO bookmarks (internship_id, note, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
-    );
     for (const b of payload.bookmarks as Record<string, unknown>[]) {
       // Only restore bookmarks for listings still in the catalog.
-      const exists = db.prepare('SELECT 1 FROM internships WHERE id = ?').get(String(b.internship_id));
-      if (exists) stmt.run(String(b.internship_id), b.note ?? null, Number(b.created_at) || Date.now() / 1000);
+      const exists = await one('SELECT 1 AS x FROM internships WHERE id = ?', [String(b.internship_id)]);
+      if (exists) {
+        await exec(
+          `INSERT INTO bookmarks (user_id, internship_id, note, created_at)
+           VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+          [auth, String(b.internship_id), b.note ?? null, Number(b.created_at) || Math.floor(Date.now() / 1000)],
+        );
+      }
     }
   }
 
   if (Array.isArray(payload.saved_searches)) {
-    const stmt = db.prepare(
-      'INSERT INTO saved_searches (name, query_json, alert, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?)',
-    );
     for (const s of payload.saved_searches as Record<string, unknown>[]) {
       if (!s.name) continue;
-      stmt.run(
-        String(s.name),
-        String(s.query_json ?? ''),
-        s.alert ? 1 : 0,
-        s.last_seen_at ?? null,
-        Number(s.created_at) || Math.floor(Date.now() / 1000),
+      await exec(
+        `INSERT INTO saved_searches (user_id, name, query_json, alert, last_seen_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          auth,
+          String(s.name),
+          String(s.query_json ?? ''),
+          s.alert ? 1 : 0,
+          s.last_seen_at ?? null,
+          Number(s.created_at) || Math.floor(Date.now() / 1000),
+        ],
       );
     }
   }
@@ -220,18 +224,14 @@ function normalizeStatus(raw: string): AppStatus {
 }
 
 /** Copy child rows for applications that were actually imported. */
-function copyChildren(
+async function copyChildren(
+  userId: string,
   input: unknown,
   table: string,
   idMap: Map<number, number>,
   columns: string[],
-): number {
+): Promise<number> {
   if (!Array.isArray(input) || idMap.size === 0) return 0;
-  const db = getDb();
-  const stmt = db.prepare(
-    `INSERT INTO ${table} (application_id, ${columns.join(', ')})
-     VALUES (?, ${columns.map(() => '?').join(', ')})`,
-  );
 
   let count = 0;
   for (const row of input as Record<string, unknown>[]) {
@@ -239,7 +239,11 @@ function copyChildren(
     const newId = idMap.get(oldId);
     if (!newId) continue;
     try {
-      stmt.run(newId, ...columns.map((c) => normalizeValue(row[c])));
+      await exec(
+        `INSERT INTO ${table} (user_id, application_id, ${columns.join(', ')})
+         VALUES (?, ?, ${columns.map(() => '?').join(', ')})`,
+        [userId, newId, ...columns.map((c) => normalizeValue(row[c]))],
+      );
       count++;
     } catch {
       // A malformed child row shouldn't abort the whole import.

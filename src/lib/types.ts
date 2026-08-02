@@ -339,7 +339,7 @@ export interface Application {
 }
 
 export interface Profile {
-  id: number;
+  user_id: string;
   name: string | null;
   email: string | null;
   school: string | null;
@@ -366,6 +366,7 @@ export interface Profile {
   resume_text: string | null;
   weekly_goal: number;
   onboarded: number;
+  calendar_token: string;
   created_at: number;
   updated_at: number;
 }

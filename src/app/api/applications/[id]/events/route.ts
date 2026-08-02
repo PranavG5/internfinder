@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, requireUserId } from '@/lib/api';
 import { addEvent, getApplication, listEvents } from '@/lib/repo';
 import { EVENT_TYPES } from '@/lib/types';
 
@@ -8,26 +8,29 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** GET /api/applications/:id/events */
 export const GET = handler(async (_request: Request, { params }: Ctx) => {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
-  return ok({ events: listEvents(id) });
+  return ok({ events: await listEvents(auth, id) });
 });
 
 /** POST /api/applications/:id/events — log a note, email, call, or milestone. */
 export const POST = handler(async (request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
-  if (!getApplication(id)) return fail('Application not found', 404);
+  if (!(await getApplication(auth, id))) return fail('Application not found', 404);
 
   const body = await readJson(request);
   const type = typeof body.type === 'string' && EVENT_TYPES.includes(body.type as never)
     ? body.type
     : 'note';
 
-  const eventId = addEvent({
+  const eventId = await addEvent(auth, {
     application_id: id,
     type,
     title: typeof body.title === 'string' ? body.title : null,
@@ -35,5 +38,5 @@ export const POST = handler(async (request: Request, { params }: Ctx) => {
     occurred_at: typeof body.occurred_at === 'number' ? body.occurred_at : null,
   });
 
-  return ok({ id: eventId, events: listEvents(id) }, { status: 201 });
+  return ok({ id: eventId, events: await listEvents(auth, id) }, { status: 201 });
 });

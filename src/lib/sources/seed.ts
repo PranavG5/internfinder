@@ -1,30 +1,46 @@
 /**
  * Seed list of applicant-tracking-system job boards.
  *
- * Every token here was verified to return a live board. The list only
- * bootstraps the catalog — `discoverBoards()` grows it automatically by reading
- * the apply URLs that come back from the aggregator feeds, so the app learns
- * about new employers without anyone editing this file.
+ * Every token here was verified to return a live board (see
+ * scripts/verify-seeds.ts). The list only bootstraps the catalog —
+ * `discoverBoards()` grows it automatically by reading the apply URLs that come
+ * back from the aggregator feeds, so the app learns about new employers without
+ * anyone editing this file.
  */
 
 export interface SeedBoard {
-  kind: 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters';
+  kind: 'greenhouse' | 'lever' | 'ashby' | 'smartrecruiters' | 'workable';
   token: string;
   label: string;
 }
 
 const GREENHOUSE = [
   'affirm', 'airtable', 'anthropic', 'asana', 'astranis', 'brex', 'checkr', 'chime',
-  'cloudflare', 'coinbase', 'coursera', 'databricks', 'datadog', 'discord', 'dropbox',
+  'cloudflare', 'coinbase', 'databricks', 'datadog', 'discord', 'dropbox',
   'duolingo', 'elastic', 'faire', 'figma', 'fivetran', 'flexport', 'ginkgobioworks',
   'gitlab', 'glossier', 'gusto', 'instacart', 'komodohealth', 'lyft', 'marqeta',
   'mercury', 'mongodb', 'muonspace', 'nextdoor', 'nuro', 'peloton', 'pinterest',
   'planetlabs', 'recursionpharmaceuticals', 'reddit', 'remotecom', 'riotgames',
   'robinhood', 'roblox', 'samsara', 'slingshotaerospace', 'sofi', 'truveta', 'twilio',
   'twitch', 'vercel', 'verkada',
-];
+  // Expansion wave: large intern programs across tech, aero, quant, and health.
+  'stripe', 'airbnb', 'doordashusa', 'spacex', 'andurilindustries', 'scaleai',
+  'epicgames', 'klaviyo', 'moloco', 'qualtrics', 'thetradedesk', 'zscaler',
+  'waymo', 'flyzipline', 'aurorainnovation', 'torcrobotics', 'figureai',
+  'jumptrading', 'optiverus', 'virtu', 'flowtraders', 'squarepointcapital',
+  'towerresearchcapital', 'akunacapital', 'drweng', 'imc', 'wehrtyou', 'okta',
+  'boxinc', 'squarespace', 'neuralink', 'amplitude', 'braze', 'carta',
+  'gofundme', 'lucidmotors', 'pandadoc', 'stubhubinc', 'tanium', 'tripadvisor',
+  'cockroachlabs', 'chanzuckerberginitiative', 'zocdoc', 'crunchyroll', 'roku',
+  'tripactions', 'rocketlab', 'toast', 'liftoff',
+] as const;
 
-const LEVER = ['alloy', 'canvasmedical', 'palantir', 'spotify', 'zoox'];
+const LEVER = [
+  'alloy', 'canvasmedical', 'palantir', 'spotify', 'zoox',
+  // Expansion wave.
+  'kraken123', 'highspot', 'outreach', 'entrata', 'matchgroup', 'mashgin',
+  'plaid', 'saronic',
+] as const;
 
 const ASHBY = [
   'abridge', 'braintrust', 'clickhouse', 'cognition', 'cohere', 'cursor', 'elevenlabs',
@@ -32,9 +48,22 @@ const ASHBY = [
   'neon', 'neptune', 'notion', 'openai', 'pika', 'pinecone', 'poolside', 'ramp', 'reka',
   'replit', 'sierra', 'suno', 'supabase', 'synthesia', 'vanta', 'warp', 'weaviate',
   'writer', 'zed',
-];
+  // Expansion wave.
+  'astronomer', 'multiverse', 'eightsleep', 'decagon', 'sardine', 'browserbase',
+  'character', 'kalshi', 'polymarket', 'anrok', 'mercor', 'skydio', 'runway',
+  'gecko-robotics', 'Deel',
+] as const;
 
-const SMARTRECRUITERS = ['Visa'];
+const SMARTRECRUITERS = [
+  'Visa',
+  // Expansion wave.
+  'ServiceNow', 'BoschGroup', 'Ubisoft2', 'Gameloft', 'Experian', 'Devoteam',
+  'Continental',
+] as const;
+
+const WORKABLE = [
+  'blueground', 'huggingface', 'moodle',
+] as const;
 
 /** Turn a board slug into something presentable, e.g. "ginkgobioworks" -> "Ginkgobioworks". */
 function label(token: string): string {
@@ -49,6 +78,7 @@ export const SEED_BOARDS: SeedBoard[] = [
   ...LEVER.map((token) => ({ kind: 'lever' as const, token, label: label(token) })),
   ...ASHBY.map((token) => ({ kind: 'ashby' as const, token, label: label(token) })),
   ...SMARTRECRUITERS.map((token) => ({ kind: 'smartrecruiters' as const, token, label: token })),
+  ...WORKABLE.map((token) => ({ kind: 'workable' as const, token, label: label(token) })),
 ];
 
 /** Singleton feeds that aren't per-company. */
@@ -57,6 +87,7 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'github', token: 'vansh-summer', label: 'GitHub · vanshb03 Summer 2026' },
   { kind: 'remoteok', token: '-', label: 'RemoteOK' },
   { kind: 'arbeitnow', token: '-', label: 'Arbeitnow (Europe)' },
+  { kind: 'jobicy', token: '-', label: 'Jobicy (remote)' },
 ];
 
 /**
@@ -100,6 +131,11 @@ export function boardFromUrl(url: string): SeedBoard | null {
   if (host.endsWith('smartrecruiters.com')) {
     const token = take(0);
     return token ? { kind: 'smartrecruiters', token, label: token } : null;
+  }
+  if (host === 'apply.workable.com') {
+    // apply.workable.com/<token>/j/<shortcode>
+    const token = take(0);
+    return token ? { kind: 'workable', token, label: label(token) } : null;
   }
   return null;
 }

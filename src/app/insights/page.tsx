@@ -1,15 +1,22 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { HBarChart, PairBars } from '@/components/charts';
 import { EmptyState, PageHeader, SectionTitle, StatTile } from '@/components/ui';
+import { getUserId } from '@/lib/auth';
 import { dashboardStats, insights, offerComparison, type InsightGroup } from '@/lib/repo';
 import { formatMoney, titleCase } from '@/lib/util';
 
 export const dynamic = 'force-dynamic';
 
-export default function InsightsPage() {
-  const data = insights();
-  const offers = offerComparison();
-  const stats = dashboardStats();
+export default async function InsightsPage() {
+  const userId = await getUserId();
+  if (!userId) redirect('/login?next=/insights');
+
+  const [data, offers, stats] = await Promise.all([
+    insights(userId),
+    offerComparison(userId),
+    dashboardStats(userId),
+  ]);
 
   const hasData = data.byField.some((group) => group.total > 0);
 

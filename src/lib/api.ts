@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
-import { isReadOnly } from './db';
+import { getUserId } from './auth';
 
 /**
- * Guard for routes that write. On a read-only deployment the catalog is served
- * from a build-time snapshot, so saving is impossible — say so plainly instead
- * of surfacing a SQLite error.
+ * Guard for routes that touch per-user data. Browsing the catalog is open to
+ * everyone; saving anything requires an account, and the 401 body carries a
+ * flag so the UI can offer the sign-in flow instead of a bare error.
  */
-export function readOnlyBlock(): Response | null {
-  if (!isReadOnly()) return null;
+export async function requireUserId(): Promise<string | Response> {
+  const userId = await getUserId();
+  if (userId) return userId;
   return NextResponse.json(
     {
-      error:
-        'This is a read-only demo — browsing and filtering work, but nothing can be saved. Run InternFinder locally to track applications.',
-      readOnly: true,
+      error: 'Sign in to save things — your profile, shortlist, and applications are stored per account.',
+      authRequired: true,
     },
-    { status: 403, headers: { 'Cache-Control': 'no-store' } },
+    { status: 401, headers: { 'Cache-Control': 'no-store' } },
   );
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "internfinder",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Aggregates open internship listings from across the web and tracks your applications end to end.",
   "scripts": {
@@ -14,18 +14,21 @@
     "verify": "node --import tsx scripts/verify.ts",
     "seed": "node --import tsx scripts/seed.ts",
     "test": "node --import tsx --test test/*.test.ts",
-    "vercel-build": "node --import tsx scripts/sync.ts --kinds github --no-discover && node --import tsx scripts/seed.ts --profile-only && node --import tsx scripts/finalize.ts && next build",
-    "finalize": "node --import tsx scripts/finalize.ts"
+    "verify-seeds": "node --import tsx scripts/verify-seeds.ts",
+    "push-catalog": "node --import tsx scripts/push-catalog.ts",
+    "vercel-build": "next build"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.111.0",
+    "@types/pg": "^8.20.3",
     "next": "^15.5.22",
+    "pg": "^8.22.0",
     "react": "19.0.0",
     "react-dom": "19.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.0.6",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.13.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",

@@ -231,21 +231,21 @@ export function toSearchParams(query: Partial<SearchQuery>): URLSearchParams {
 }
 
 /**
- * Turn user text into a safe FTS5 MATCH expression.
- * Quoting every term means punctuation like "C++" or "-" can't be read as
- * FTS operator syntax, which would otherwise throw.
+ * Turn user text into a safe Postgres tsquery expression.
+ * Quoting every term means punctuation like "C++" or "&" can't be read as
+ * tsquery operator syntax, which would otherwise throw.
  */
 export function toFtsQuery(input: string): string | null {
   const terms = input
     .toLowerCase()
     .split(/\s+/)
-    .map((t) => t.replace(/"/g, '').trim())
+    .map((t) => t.replace(/['"\\:&|!()<>]/g, '').trim())
     .filter((t) => t.length > 1);
   if (terms.length === 0) return null;
-  // Trailing * makes the last term a prefix match, so "engin" finds "engineering".
+  // Trailing :* makes the last term a prefix match, so "engin" finds "engineering".
   return terms
-    .map((t, i) => (i === terms.length - 1 ? `"${t}"*` : `"${t}"`))
-    .join(' AND ');
+    .map((t, i) => (i === terms.length - 1 ? `'${t}':*` : `'${t}'`))
+    .join(' & ');
 }
 
 

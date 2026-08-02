@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, requireUserId } from '@/lib/api';
 import {
   deleteApplication,
   getApplication,
@@ -13,42 +13,46 @@ type Ctx = { params: Promise<{ id: string }> };
 
 /** GET /api/applications/:id — the application plus its timeline and children. */
 export const GET = handler(async (_request: Request, { params }: Ctx) => {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
 
-  const application = getApplication(id);
+  const application = await getApplication(auth, id);
   if (!application) return fail('Application not found', 404);
 
-  return ok({
-    application,
-    events: listEvents(id),
-    interviews: listChildren('interviews', id),
-    contacts: listChildren('contacts', id),
-    offers: listChildren('offers', id),
-    tasks: listChildren('tasks', id),
-  });
+  const [events, interviews, contacts, offers, tasks] = await Promise.all([
+    listEvents(auth, id),
+    listChildren('interviews', auth, id),
+    listChildren('contacts', auth, id),
+    listChildren('offers', auth, id),
+    listChildren('tasks', auth, id),
+  ]);
+
+  return ok({ application, events, interviews, contacts, offers, tasks });
 });
 
 /** PATCH /api/applications/:id — update fields; status changes are logged. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
 
-  const application = updateApplication(id, await readJson(request));
+  const application = await updateApplication(auth, id, await readJson(request));
   if (!application) return fail('Application not found', 404);
   return ok({ application });
 });
 
 /** DELETE /api/applications/:id */
 export const DELETE = handler(async (_request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const id = parseId((await params).id);
   if (!id) return fail('Invalid id', 422);
-  if (!deleteApplication(id)) return fail('Application not found', 404);
+  if (!(await deleteApplication(auth, id))) return fail('Application not found', 404);
   return ok({ deleted: true });
 });

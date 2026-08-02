@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ApplicationDetail } from '@/components/ApplicationDetail';
+import { getUserId } from '@/lib/auth';
 import { getApplication, listChildren, listEvents } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,10 @@ export default async function ApplicationPage({
   const applicationId = Number(id);
   if (!Number.isInteger(applicationId)) notFound();
 
-  const application = getApplication(applicationId);
+  const userId = await getUserId();
+  if (!userId) redirect('/login?next=/tracker');
+
+  const application = await getApplication(userId, applicationId);
   if (!application) {
     return (
       <div className="p-6">
@@ -29,11 +33,11 @@ export default async function ApplicationPage({
   return (
     <ApplicationDetail
       application={application}
-      initialEvents={listEvents(applicationId) as never[]}
-      initialInterviews={listChildren('interviews', applicationId) as never[]}
-      initialContacts={listChildren('contacts', applicationId) as never[]}
-      initialOffers={listChildren('offers', applicationId) as never[]}
-      initialTasks={listChildren('tasks', applicationId) as never[]}
+      initialEvents={(await listEvents(userId, applicationId)) as never[]}
+      initialInterviews={(await listChildren('interviews', userId, applicationId)) as never[]}
+      initialContacts={(await listChildren('contacts', userId, applicationId)) as never[]}
+      initialOffers={(await listChildren('offers', userId, applicationId)) as never[]}
+      initialTasks={(await listChildren('tasks', userId, applicationId)) as never[]}
     />
   );
 }

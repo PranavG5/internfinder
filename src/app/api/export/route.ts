@@ -1,5 +1,5 @@
-import { handler } from '@/lib/api';
-import { getDb } from '@/lib/db';
+import { handler, requireUserId } from '@/lib/api';
+import { q } from '@/lib/db';
 import { getProfile, listApplications } from '@/lib/repo';
 import { formatDate, toCsv } from '@/lib/util';
 
@@ -12,14 +12,15 @@ export const dynamic = 'force-dynamic';
  * CSV is the spreadsheet-friendly view of the tracker.
  */
 export const GET = handler(async (request: Request) => {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
   const params = new URL(request.url).searchParams;
   const format = params.get('format') === 'csv' ? 'csv' : 'json';
-  const what = params.get('what') ?? 'all';
-  const db = getDb();
   const stamp = new Date().toISOString().slice(0, 10);
 
   if (format === 'csv') {
-    const applications = listApplications({ archived: params.get('archived') === '1' });
+    const applications = await listApplications(auth, { archived: params.get('archived') === '1' });
     const rows = applications.map((a) => ({
       company: a.company,
       role: a.role,
@@ -50,28 +51,36 @@ export const GET = handler(async (request: Request) => {
     });
   }
 
+  const [active, archived, events, interviews, contacts, offers, tasks, profile, savedSearches, bookmarks, hidden] =
+    await Promise.all([
+      listApplications(auth, { archived: false }),
+      listApplications(auth, { archived: true }),
+      q('SELECT * FROM application_events WHERE user_id = ?', [auth]),
+      q('SELECT * FROM interviews WHERE user_id = ?', [auth]),
+      q('SELECT * FROM contacts WHERE user_id = ?', [auth]),
+      q('SELECT * FROM offers WHERE user_id = ?', [auth]),
+      q('SELECT * FROM tasks WHERE user_id = ?', [auth]),
+      getProfile(auth),
+      q('SELECT * FROM saved_searches WHERE user_id = ?', [auth]),
+      q('SELECT * FROM bookmarks WHERE user_id = ?', [auth]),
+      q('SELECT * FROM hidden_listings WHERE user_id = ?', [auth]),
+    ]);
+
   const payload: Record<string, unknown> = {
     exported_at: new Date().toISOString(),
     version: 1,
-    applications: listApplications({ archived: false }),
-    archived_applications: listApplications({ archived: true }),
-    application_events: db.prepare('SELECT * FROM application_events').all(),
-    interviews: db.prepare('SELECT * FROM interviews').all(),
-    contacts: db.prepare('SELECT * FROM contacts').all(),
-    offers: db.prepare('SELECT * FROM offers').all(),
-    tasks: db.prepare('SELECT * FROM tasks').all(),
-    profile: getProfile(),
-    saved_searches: db.prepare('SELECT * FROM saved_searches').all(),
-    bookmarks: db.prepare('SELECT * FROM bookmarks').all(),
-    hidden_listings: db.prepare('SELECT * FROM hidden_listings').all(),
+    applications: active,
+    archived_applications: archived,
+    application_events: events,
+    interviews,
+    contacts,
+    offers,
+    tasks,
+    profile,
+    saved_searches: savedSearches,
+    bookmarks,
+    hidden_listings: hidden,
   };
-
-  // The catalog is re-fetchable, so it's opt-in to keep backups small.
-  if (what === 'all-with-catalog') {
-    payload.internships = db
-      .prepare('SELECT * FROM internships WHERE is_open = 1')
-      .all();
-  }
 
   return new Response(JSON.stringify(payload, null, 2), {
     headers: {

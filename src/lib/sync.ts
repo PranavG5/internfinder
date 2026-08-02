@@ -1,7 +1,8 @@
-import { getDb, nowSec, type DB } from './db';
+import { exec, nowSec, one, q } from './db';
 import { normalize, type NormalizedListing, type RawListing } from './parse';
 import { fetchAshby, fetchGreenhouse, fetchLever, fetchSmartRecruiters } from './sources/ats';
-import { fetchArbeitnow, fetchGithubList, fetchRemoteOk } from './sources/feeds';
+import { fetchWorkable } from './sources/workable';
+import { fetchArbeitnow, fetchGithubList, fetchJobicy, fetchRemoteOk } from './sources/feeds';
 import { checkLink, mapPool } from './sources/http';
 import { boardFromUrl, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
 import { DAY } from './util';
@@ -76,24 +77,22 @@ export interface SyncOptions {
 }
 
 /** Insert the built-in sources on first run. */
-export function ensureSeedSources(db: DB = getDb()): void {
-  const insert = db.prepare(
-    `INSERT INTO source_configs (kind, token, label, enabled, created_at)
-     VALUES (?, ?, ?, 1, ?)
-     ON CONFLICT(kind, token) DO NOTHING`,
-  );
+export async function ensureSeedSources(): Promise<void> {
+  const all = [...SEED_FEEDS, ...SEED_BOARDS];
   const now = nowSec();
-  const tx = db.transaction(() => {
-    for (const feed of SEED_FEEDS) insert.run(feed.kind, feed.token, feed.label, now);
-    for (const board of SEED_BOARDS) insert.run(board.kind, board.token, board.label, now);
-  });
-  tx();
+  await exec(
+    `INSERT INTO source_configs (kind, token, label, enabled, created_at)
+     SELECT kind, token, label, 1, ?
+     FROM unnest(?::text[], ?::text[], ?::text[]) AS s(kind, token, label)
+     ON CONFLICT (kind, token) DO NOTHING`,
+    [now, all.map((s) => s.kind), all.map((s) => s.token), all.map((s) => s.label)],
+  );
 }
 
-function listSources(db: DB, opts: SyncOptions): SourceRow[] {
-  let rows = db
-    .prepare('SELECT * FROM source_configs WHERE enabled = 1 ORDER BY kind, token')
-    .all() as SourceRow[];
+async function listSources(opts: SyncOptions): Promise<SourceRow[]> {
+  let rows = await q<SourceRow>(
+    'SELECT * FROM source_configs WHERE enabled = 1 ORDER BY kind, token',
+  );
 
   if (opts.kinds?.length) rows = rows.filter((r) => opts.kinds!.includes(r.kind));
   if (opts.only?.length) {
@@ -118,7 +117,7 @@ function listSources(db: DB, opts: SyncOptions): SourceRow[] {
     }
     const queues = [...byKind.values()];
     const picked: SourceRow[] = [];
-    for (let i = 0; picked.length < opts.maxBoards && queues.some((q) => q.length > i); i++) {
+    for (let i = 0; picked.length < opts.maxBoards && queues.some((queue) => queue.length > i); i++) {
       for (const queue of queues) {
         if (picked.length >= opts.maxBoards) break;
         if (queue.length > i) picked.push(queue[i]);
@@ -131,8 +130,16 @@ function listSources(db: DB, opts: SyncOptions): SourceRow[] {
   return rows;
 }
 
+const BOARD_KINDS = new Set([
+  'greenhouse',
+  'lever',
+  'ashby',
+  'smartrecruiters',
+  'workable',
+]);
+
 function isBoardKind(kind: string): boolean {
-  return kind === 'greenhouse' || kind === 'lever' || kind === 'ashby' || kind === 'smartrecruiters';
+  return BOARD_KINDS.has(kind);
 }
 
 async function fetchSource(row: SourceRow): Promise<RawListing[]> {
@@ -145,6 +152,10 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchAshby(row.token, row.label);
     case 'smartrecruiters':
       return fetchSmartRecruiters(row.token, row.label);
+    case 'workable':
+      return fetchWorkable(row.token, row.label);
+    case 'jobicy':
+      return fetchJobicy();
     case 'github':
       return fetchGithubList(row.token);
     case 'remoteok':
@@ -161,22 +172,19 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
  * which listings are still open.
  */
 export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
-  const db = getDb();
-  ensureSeedSources(db);
+  await ensureSeedSources();
 
   const startedAt = nowSec();
   const t0 = Date.now();
   const log = opts.onProgress ?? (() => {});
 
-  const runId = Number(
-    (
-      db
-        .prepare('INSERT INTO sync_runs (started_at, trigger) VALUES (?, ?)')
-        .run(startedAt, opts.trigger ?? 'manual') as { lastInsertRowid: number | bigint }
-    ).lastInsertRowid,
+  const runRow = await one<{ id: number }>(
+    'INSERT INTO sync_runs (started_at, trigger) VALUES (?, ?) RETURNING id',
+    [startedAt, opts.trigger ?? 'manual'],
   );
+  const runId = runRow!.id;
 
-  const sources = listSources(db, opts);
+  const sources = await listSources(opts);
   log(`Syncing ${sources.length} source${sources.length === 1 ? '' : 's'}…`);
 
   const outcomes: SourceOutcome[] = [];
@@ -217,9 +225,10 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
         if (!bySource.has(emitted)) bySource.set(emitted, []);
       }
 
-      db.prepare(
+      await exec(
         'UPDATE source_configs SET last_sync_at = ?, last_count = ?, last_error = NULL WHERE id = ?',
-      ).run(nowSec(), listings.length, row.id);
+        [nowSec(), listings.length, row.id],
+      );
 
       outcomes.push({
         source: sourceKey,
@@ -234,11 +243,11 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
       log(`  ${row.label}: ${listings.length} internships from ${raw.length} postings`);
     } catch (err) {
       const message = (err as Error).message ?? String(err);
-      db.prepare('UPDATE source_configs SET last_sync_at = ?, last_error = ? WHERE id = ?').run(
+      await exec('UPDATE source_configs SET last_sync_at = ?, last_error = ? WHERE id = ?', [
         nowSec(),
         message.slice(0, 400),
         row.id,
-      );
+      ]);
       outcomes.push({
         source: sourceKey,
         kind: row.kind,
@@ -257,42 +266,43 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 
   // ---- Upsert everything we found. ----
   const all = [...bySource.values()].flat();
-  const { inserted, updated, reopened, skipped } = upsertListings(db, all);
+  const { inserted, updated, reopened, skipped } = await upsertListings(all);
 
   // ---- Close listings that vanished from a source that synced cleanly. ----
   const healthySources = [...bySource.keys()];
-  const closed = reconcileOpenness(db, bySource, healthySources);
+  const closed = await reconcileOpenness(bySource, healthySources);
 
   // ---- Lifecycle sweep + dedupe. ----
-  const expired = sweepLifecycle(db);
-  const duplicates = markDuplicates(db);
+  const expired = await sweepLifecycle();
+  const duplicates = await markDuplicates();
 
   // ---- Learn about new employers from the URLs we just saw. ----
   let discovered = 0;
   if (!opts.noDiscover) {
-    discovered = discoverBoards(db, seenUrls);
+    discovered = await discoverBoards(seenUrls);
     if (discovered > 0) log(`Discovered ${discovered} new company job board(s) for future syncs.`);
   }
 
   const durationMs = Date.now() - t0;
   const ok = outcomes.length > 0 && outcomes.some((o) => o.ok);
 
-  db.prepare(
+  await exec(
     `UPDATE sync_runs SET finished_at = ?, ok = ?, found = ?, inserted = ?, updated = ?,
         closed = ?, skipped = ?, duration_ms = ?, sources_json = ?, errors_json = ?
      WHERE id = ?`,
-  ).run(
-    nowSec(),
-    ok ? 1 : 0,
-    all.length,
-    inserted,
-    updated,
-    closed + expired,
-    skipped,
-    durationMs,
-    JSON.stringify(outcomes),
-    JSON.stringify(errors),
-    runId,
+    [
+      nowSec(),
+      ok ? 1 : 0,
+      all.length,
+      inserted,
+      updated,
+      closed + expired,
+      skipped,
+      durationMs,
+      JSON.stringify(outcomes),
+      JSON.stringify(errors),
+      runId,
+    ],
   );
 
   return {
@@ -313,7 +323,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 }
 
 function sourceKeyForRow(row: SourceRow): string {
-  if (row.kind === 'remoteok' || row.kind === 'arbeitnow') return row.kind;
+  if (row.kind === 'remoteok' || row.kind === 'arbeitnow' || row.kind === 'jobicy') return row.kind;
   return `${row.kind}:${row.token}`;
 }
 
@@ -324,104 +334,115 @@ interface UpsertCounts {
   skipped: number;
 }
 
+/** Column list shared by the bulk-upsert statement and its record definition. */
+const UPSERT_COLUMNS: [name: string, pgType: string][] = [
+  ['id', 'text'], ['source', 'text'], ['source_kind', 'text'], ['source_id', 'text'],
+  ['company', 'text'], ['company_slug', 'text'], ['company_url', 'text'], ['title', 'text'],
+  ['normalized_title', 'text'], ['apply_url', 'text'], ['description', 'text'],
+  ['locations_json', 'text'], ['primary_location', 'text'], ['city', 'text'], ['region', 'text'],
+  ['country', 'text'], ['location_type', 'text'], ['is_remote', 'smallint'], ['season', 'text'],
+  ['year', 'integer'], ['terms_json', 'text'], ['start_date', 'bigint'], ['end_date', 'bigint'],
+  ['duration_weeks', 'integer'], ['deadline', 'bigint'], ['field', 'text'], ['role_family', 'text'],
+  ['program_type', 'text'], ['degrees_json', 'text'], ['class_years_json', 'text'],
+  ['gpa_min', 'double precision'], ['sponsorship', 'text'], ['offers_sponsorship', 'smallint'],
+  ['requires_citizenship', 'smallint'], ['requires_clearance', 'smallint'],
+  ['requires_cover_letter', 'smallint'], ['requires_transcript', 'smallint'],
+  ['requires_portfolio', 'smallint'], ['skills_json', 'text'], ['tags_json', 'text'],
+  ['is_paid', 'smallint'], ['salary_min', 'double precision'], ['salary_max', 'double precision'],
+  ['salary_period', 'text'], ['salary_currency', 'text'], ['comp_text', 'text'],
+  ['status', 'text'], ['is_open', 'smallint'], ['first_seen_at', 'bigint'],
+  ['last_seen_at', 'bigint'], ['date_posted', 'bigint'], ['date_updated', 'bigint'],
+  ['dedupe_key', 'text'], ['quality', 'double precision'],
+];
+
+/** Columns whose new value should only overwrite when the new value is present. */
+const COALESCE_ON_UPDATE = new Set(['company_url', 'description', 'date_posted']);
+/** Columns never touched on update. */
+const INSERT_ONLY = new Set(['id', 'first_seen_at']);
+
+const UPSERT_SQL = (() => {
+  const names = UPSERT_COLUMNS.map(([n]) => n);
+  const recordDef = UPSERT_COLUMNS.map(([n, t]) => `${n} ${t}`).join(', ');
+  const updates = names
+    .filter((n) => !INSERT_ONLY.has(n))
+    .map((n) =>
+      COALESCE_ON_UPDATE.has(n)
+        ? `${n} = COALESCE(EXCLUDED.${n}, internships.${n})`
+        : `${n} = EXCLUDED.${n}`,
+    );
+  // Reopening clears the closed markers; closing keeps whatever reason applies.
+  updates.push(
+    'close_reason = CASE WHEN EXCLUDED.is_open = 1 THEN NULL ELSE internships.close_reason END',
+    'closed_at = CASE WHEN EXCLUDED.is_open = 1 THEN NULL ELSE internships.closed_at END',
+  );
+  return `
+    INSERT INTO internships (${names.join(', ')})
+    SELECT ${names.map((n) => `r.${n}`).join(', ')}
+    FROM jsonb_to_recordset(?::jsonb) AS r(${recordDef})
+    ON CONFLICT (id) DO UPDATE SET ${updates.join(', ')}
+    RETURNING id, (xmax = 0) AS was_insert
+  `;
+})();
+
 /**
- * Insert new listings and refresh existing ones.
+ * Insert new listings and refresh existing ones in bulk — one statement per
+ * chunk, which matters when the database is across the network.
  *
  * A listing seen again is always marked open: reappearing on a live board is
  * evidence the role is accepting applications again.
  */
-export function upsertListings(db: DB, listings: NormalizedListing[]): UpsertCounts {
+export async function upsertListings(listings: NormalizedListing[]): Promise<UpsertCounts> {
   const now = nowSec();
   let inserted = 0;
   let updated = 0;
   let reopened = 0;
   let skipped = 0;
 
-  const existing = db.prepare('SELECT id, is_open FROM internships WHERE id = ?');
+  // The same listing can appear twice in one run (e.g. two aggregator entries
+  // resolving to one id); a single multi-row upsert cannot touch a row twice.
+  const byId = new Map<string, NormalizedListing>();
+  for (const listing of listings) byId.set(listing.id, listing);
+  const unique = [...byId.values()];
 
-  const insert = db.prepare(`
-    INSERT INTO internships (
-      id, source, source_kind, source_id, company, company_slug, company_url, title,
-      normalized_title, apply_url, description, locations_json, primary_location, city, region,
-      country, location_type, is_remote, season, year, terms_json, start_date, end_date,
-      duration_weeks, deadline, field, role_family, program_type, degrees_json, class_years_json,
-      gpa_min, sponsorship, offers_sponsorship, requires_citizenship, requires_clearance,
-      requires_cover_letter, requires_transcript, requires_portfolio, skills_json, tags_json,
-      is_paid, salary_min, salary_max, salary_period, salary_currency, comp_text,
-      status, is_open, close_reason, closed_at, first_seen_at, last_seen_at,
-      date_posted, date_updated, dedupe_key, quality
-    ) VALUES (
-      @id, @source, @source_kind, @source_id, @company, @company_slug, @company_url, @title,
-      @normalized_title, @apply_url, @description, @locations_json, @primary_location, @city, @region,
-      @country, @location_type, @is_remote, @season, @year, @terms_json, @start_date, @end_date,
-      @duration_weeks, @deadline, @field, @role_family, @program_type, @degrees_json, @class_years_json,
-      @gpa_min, @sponsorship, @offers_sponsorship, @requires_citizenship, @requires_clearance,
-      @requires_cover_letter, @requires_transcript, @requires_portfolio, @skills_json, @tags_json,
-      @is_paid, @salary_min, @salary_max, @salary_period, @salary_currency, @comp_text,
-      @status, @is_open, NULL, NULL, @first_seen_at, @last_seen_at,
-      @date_posted, @date_updated, @dedupe_key, @quality
-    )
-  `);
+  for (let i = 0; i < unique.length; i += 500) {
+    const chunk = unique.slice(i, i + 500);
+    const ids = chunk.map((l) => l.id);
 
-  const update = db.prepare(`
-    UPDATE internships SET
-      title = @title, normalized_title = @normalized_title, apply_url = @apply_url,
-      company = @company, company_slug = @company_slug,
-      company_url = COALESCE(@company_url, company_url),
-      description = COALESCE(@description, description),
-      locations_json = @locations_json, primary_location = @primary_location,
-      city = @city, region = @region, country = @country,
-      location_type = @location_type, is_remote = @is_remote,
-      season = @season, year = @year, terms_json = @terms_json,
-      start_date = @start_date, end_date = @end_date, duration_weeks = @duration_weeks,
-      deadline = @deadline, field = @field, role_family = @role_family,
-      program_type = @program_type, degrees_json = @degrees_json,
-      class_years_json = @class_years_json, gpa_min = @gpa_min,
-      sponsorship = @sponsorship, offers_sponsorship = @offers_sponsorship,
-      requires_citizenship = @requires_citizenship, requires_clearance = @requires_clearance,
-      requires_cover_letter = @requires_cover_letter, requires_transcript = @requires_transcript,
-      requires_portfolio = @requires_portfolio, skills_json = @skills_json, tags_json = @tags_json,
-      is_paid = @is_paid, salary_min = @salary_min, salary_max = @salary_max,
-      salary_period = @salary_period, salary_currency = @salary_currency, comp_text = @comp_text,
-      status = @status, is_open = @is_open,
-      close_reason = CASE WHEN @is_open = 1 THEN NULL ELSE close_reason END,
-      closed_at = CASE WHEN @is_open = 1 THEN NULL ELSE closed_at END,
-      last_seen_at = @last_seen_at,
-      date_posted = COALESCE(@date_posted, date_posted),
-      date_updated = @date_updated, dedupe_key = @dedupe_key, quality = @quality
-    WHERE id = @id
-  `);
+    const existing = new Map(
+      (
+        await q<{ id: string; is_open: number }>(
+          'SELECT id, is_open FROM internships WHERE id = ANY(?)',
+          [ids],
+        )
+      ).map((r) => [r.id, r.is_open]),
+    );
 
-  const tx = db.transaction((batch: NormalizedListing[]) => {
-    for (const listing of batch) {
-      const params = toParams(listing, now);
-      const prior = existing.get(listing.id) as { id: string; is_open: number } | undefined;
-
-      if (!prior) {
+    const batch: Record<string, unknown>[] = [];
+    for (const listing of chunk) {
+      const prior = existing.get(listing.id);
+      if (prior === undefined && !listing.active) {
         // A listing whose source already says it's inactive is not worth storing.
-        if (!listing.active) {
-          skipped++;
-          continue;
-        }
-        insert.run(params);
-        inserted++;
-      } else {
-        if (prior.is_open === 0 && listing.active) reopened++;
-        update.run(params);
-        updated++;
+        skipped++;
+        continue;
       }
+      if (prior === 0 && listing.active) reopened++;
+      batch.push(toParams(listing, now));
     }
-  });
+    if (batch.length === 0) continue;
 
-  // Chunk so a single huge feed doesn't hold one enormous transaction.
-  for (let i = 0; i < listings.length; i += 2000) {
-    tx(listings.slice(i, i + 2000));
+    const results = await q<{ id: string; was_insert: boolean }>(UPSERT_SQL, [
+      JSON.stringify(batch),
+    ]);
+    for (const row of results) {
+      if (row.was_insert) inserted++;
+      else updated++;
+    }
   }
 
   return { inserted, updated, reopened, skipped };
 }
 
-function toParams(l: NormalizedListing, now: number) {
+function toParams(l: NormalizedListing, now: number): Record<string, unknown> {
   const open = l.active ? 1 : 0;
   return {
     id: l.id,
@@ -487,37 +508,22 @@ function toParams(l: NormalizedListing, now: number) {
  * Only sources that fetched successfully in this run are reconciled — a network
  * failure must never be read as "this employer closed every role".
  */
-export function reconcileOpenness(
-  db: DB,
+export async function reconcileOpenness(
   bySource: Map<string, NormalizedListing[]>,
   healthySources: string[],
-): number {
+): Promise<number> {
   if (healthySources.length === 0) return 0;
   const now = nowSec();
   let closed = 0;
 
-  const tx = db.transaction(() => {
-    for (const source of healthySources) {
-      const seen = new Set((bySource.get(source) ?? []).map((l) => l.id));
-
-      const openRows = db
-        .prepare('SELECT id FROM internships WHERE source = ? AND is_open = 1')
-        .all(source) as { id: string }[];
-
-      const gone = openRows.filter((r) => !seen.has(r.id)).map((r) => r.id);
-      if (gone.length === 0) continue;
-
-      const close = db.prepare(
-        `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'delisted', closed_at = ?
-         WHERE id = ?`,
-      );
-      for (const id of gone) {
-        close.run(now, id);
-        closed++;
-      }
-    }
-  });
-  tx();
+  for (const source of healthySources) {
+    const seen = (bySource.get(source) ?? []).map((l) => l.id);
+    closed += await exec(
+      `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'delisted', closed_at = ?
+       WHERE source = ? AND is_open = 1 AND NOT (id = ANY(?))`,
+      [now, source, seen],
+    );
+  }
   return closed;
 }
 
@@ -526,44 +532,36 @@ export function reconcileOpenness(
  * an ancient posting date. This is the safety net for sources whose feeds go
  * quiet without formally delisting anything.
  */
-export function sweepLifecycle(db: DB): number {
+export async function sweepLifecycle(): Promise<number> {
   const now = nowSec();
   let count = 0;
 
-  const expired = db
-    .prepare(
-      `UPDATE internships SET is_open = 0, status = 'expired', close_reason = 'deadline-passed', closed_at = ?
-       WHERE is_open = 1 AND deadline IS NOT NULL AND deadline < ?`,
-    )
-    .run(now, now - DAY);
-  count += expired.changes;
+  count += await exec(
+    `UPDATE internships SET is_open = 0, status = 'expired', close_reason = 'deadline-passed', closed_at = ?
+     WHERE is_open = 1 AND deadline IS NOT NULL AND deadline < ?`,
+    [now, now - DAY],
+  );
 
-  const unseen = db
-    .prepare(
-      `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'stale', closed_at = ?
-       WHERE is_open = 1 AND last_seen_at < ?`,
-    )
-    .run(now, now - STALE_UNSEEN_DAYS * DAY);
-  count += unseen.changes;
+  count += await exec(
+    `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'stale', closed_at = ?
+     WHERE is_open = 1 AND last_seen_at < ?`,
+    [now, now - STALE_UNSEEN_DAYS * DAY],
+  );
 
-  const ancient = db
-    .prepare(
-      `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'stale', closed_at = ?
-       WHERE is_open = 1 AND date_posted IS NOT NULL AND date_posted < ?
-         AND (date_updated IS NULL OR date_updated < ?)`,
-    )
-    .run(now, now - STALE_POSTED_DAYS * DAY, now - STALE_POSTED_DAYS * DAY);
-  count += ancient.changes;
+  count += await exec(
+    `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'stale', closed_at = ?
+     WHERE is_open = 1 AND date_posted IS NOT NULL AND date_posted < ?
+       AND (date_updated IS NULL OR date_updated < ?)`,
+    [now, now - STALE_POSTED_DAYS * DAY, now - STALE_POSTED_DAYS * DAY],
+  );
 
   // A term whose start is well behind us can't be applied to, even if the
   // source still flags it active — e.g. a "Spring 2025" listing seen in 2026.
-  const termPassed = db
-    .prepare(
-      `UPDATE internships SET is_open = 0, status = 'expired', close_reason = 'term-passed', closed_at = ?
-       WHERE is_open = 1 AND start_date IS NOT NULL AND start_date < ?`,
-    )
-    .run(now, now - TERM_PASSED_DAYS * DAY);
-  count += termPassed.changes;
+  count += await exec(
+    `UPDATE internships SET is_open = 0, status = 'expired', close_reason = 'term-passed', closed_at = ?
+     WHERE is_open = 1 AND start_date IS NOT NULL AND start_date < ?`,
+    [now, now - TERM_PASSED_DAYS * DAY],
+  );
 
   return count;
 }
@@ -573,66 +571,71 @@ export function sweepLifecycle(db: DB): number {
  * Preference order: a company's own ATS board, then metadata completeness,
  * then the most recently posted copy.
  */
-export function markDuplicates(db: DB): number {
-  const groups = db
-    .prepare(
-      `SELECT dedupe_key FROM internships
-       WHERE is_open = 1 AND dedupe_key <> ''
-       GROUP BY dedupe_key HAVING COUNT(*) > 1`,
-    )
-    .all() as { dedupe_key: string }[];
+export async function markDuplicates(): Promise<number> {
+  // Reset first so a previously-hidden row can be promoted when the winner closes.
+  await exec('UPDATE internships SET duplicate_of = NULL WHERE is_open = 1');
+  await exec(
+    `UPDATE internships SET duplicate_of = NULL
+     WHERE duplicate_of IS NOT NULL AND is_open = 1
+       AND duplicate_of NOT IN (SELECT id FROM internships WHERE is_open = 1)`,
+  );
 
-  if (groups.length === 0) {
-    db.prepare(
-      `UPDATE internships SET duplicate_of = NULL
-       WHERE duplicate_of IS NOT NULL AND is_open = 1
-         AND duplicate_of NOT IN (SELECT id FROM internships WHERE is_open = 1)`,
-    ).run();
-    return 0;
+  const rows = await q<{
+    id: string;
+    dedupe_key: string;
+    source_kind: string;
+    quality: number;
+    date_posted: number | null;
+    has_desc: number;
+  }>(
+    `SELECT id, dedupe_key, source_kind, quality, date_posted,
+            CASE WHEN description IS NOT NULL THEN 1 ELSE 0 END AS has_desc
+     FROM internships
+     WHERE is_open = 1 AND dedupe_key <> ''
+       AND dedupe_key IN (
+         SELECT dedupe_key FROM internships
+         WHERE is_open = 1 AND dedupe_key <> ''
+         GROUP BY dedupe_key HAVING COUNT(*) > 1
+       )`,
+  );
+
+  const groups = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const bucket = groups.get(row.dedupe_key) ?? [];
+    bucket.push(row);
+    groups.set(row.dedupe_key, bucket);
   }
 
   const rank = (kind: string) => (kind === 'ats' ? 2 : kind === 'aggregator' ? 1 : 0);
-  let marked = 0;
+  const pairs: { id: string; winner: string }[] = [];
 
-  const tx = db.transaction(() => {
-    // Reset first so a previously-hidden row can be promoted when the winner closes.
-    db.prepare('UPDATE internships SET duplicate_of = NULL WHERE is_open = 1').run();
-
-    const rowsFor = db.prepare(
-      `SELECT id, source_kind, quality, date_posted, description IS NOT NULL AS has_desc
-       FROM internships WHERE dedupe_key = ? AND is_open = 1`,
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    group.sort(
+      (a, b) =>
+        rank(b.source_kind) - rank(a.source_kind) ||
+        b.has_desc - a.has_desc ||
+        b.quality - a.quality ||
+        (b.date_posted ?? 0) - (a.date_posted ?? 0) ||
+        a.id.localeCompare(b.id),
     );
-    const setDup = db.prepare('UPDATE internships SET duplicate_of = ? WHERE id = ?');
+    const winner = group[0];
+    for (const loser of group.slice(1)) pairs.push({ id: loser.id, winner: winner.id });
+  }
 
-    for (const { dedupe_key } of groups) {
-      const rows = rowsFor.all(dedupe_key) as {
-        id: string;
-        source_kind: string;
-        quality: number;
-        date_posted: number | null;
-        has_desc: number;
-      }[];
-      if (rows.length < 2) continue;
+  if (pairs.length === 0) return 0;
 
-      rows.sort(
-        (a, b) =>
-          rank(b.source_kind) - rank(a.source_kind) ||
-          b.has_desc - a.has_desc ||
-          b.quality - a.quality ||
-          (b.date_posted ?? 0) - (a.date_posted ?? 0) ||
-          a.id.localeCompare(b.id),
-      );
+  for (let i = 0; i < pairs.length; i += 2000) {
+    const chunk = pairs.slice(i, i + 2000);
+    await exec(
+      `UPDATE internships i SET duplicate_of = m.winner
+       FROM jsonb_to_recordset(?::jsonb) AS m(id text, winner text)
+       WHERE i.id = m.id`,
+      [JSON.stringify(chunk)],
+    );
+  }
 
-      const winner = rows[0];
-      for (const loser of rows.slice(1)) {
-        setDup.run(winner.id, loser.id);
-        marked++;
-      }
-    }
-  });
-  tx();
-
-  return marked;
+  return pairs.length;
 }
 
 /**
@@ -643,7 +646,7 @@ export function markDuplicates(db: DB): number {
  * Lever) never return one — without this, the board slug becomes the displayed
  * company, so "k-id" would show up as "K Id" instead of the real name.
  */
-export function discoverBoards(db: DB, seen: { url: string; company?: string }[]): number {
+export async function discoverBoards(seen: { url: string; company?: string }[]): Promise<number> {
   const found = new Map<string, { kind: string; token: string; label: string }>();
 
   for (const { url, company } of seen) {
@@ -657,27 +660,26 @@ export function discoverBoards(db: DB, seen: { url: string; company?: string }[]
   }
   if (found.size === 0) return 0;
 
-  const insert = db.prepare(
-    `INSERT INTO source_configs (kind, token, label, enabled, created_at)
-     VALUES (?, ?, ?, 1, ?)
-     ON CONFLICT(kind, token) DO NOTHING`,
-  );
-  // Backfill a better label onto boards we already track under a slug-derived name.
-  const relabel = db.prepare(
-    `UPDATE source_configs SET label = ?
-     WHERE kind = ? AND token = ? AND lower(replace(label, ' ', '')) = lower(replace(?, '-', ''))`,
-  );
+  const boards = [...found.values()];
   const now = nowSec();
-  let added = 0;
 
-  const tx = db.transaction(() => {
-    for (const board of found.values()) {
-      const result = insert.run(board.kind, board.token, board.label, now);
-      if (result.changes > 0) added++;
-      else relabel.run(board.label, board.kind, board.token, board.token);
-    }
-  });
-  tx();
+  const added = await exec(
+    `INSERT INTO source_configs (kind, token, label, enabled, created_at)
+     SELECT kind, token, label, 1, ?
+     FROM unnest(?::text[], ?::text[], ?::text[]) AS s(kind, token, label)
+     ON CONFLICT (kind, token) DO NOTHING`,
+    [now, boards.map((b) => b.kind), boards.map((b) => b.token), boards.map((b) => b.label)],
+  );
+
+  // Backfill a better label onto boards we already track under a slug-derived name.
+  await exec(
+    `UPDATE source_configs sc SET label = s.label
+     FROM unnest(?::text[], ?::text[], ?::text[]) AS s(kind, token, label)
+     WHERE sc.kind = s.kind AND sc.token = s.token
+       AND lower(replace(sc.label, ' ', '')) = lower(replace(sc.token, '-', ''))
+       AND sc.label <> s.label`,
+    [boards.map((b) => b.kind), boards.map((b) => b.token), boards.map((b) => b.label)],
+  );
 
   return added;
 }
@@ -693,29 +695,19 @@ export async function verifyLinks(
   limit = 100,
   opts: { concurrency?: number; onProgress?: (msg: string) => void } = {},
 ): Promise<{ checked: number; closed: number; alive: number; errors: number }> {
-  const db = getDb();
   const now = nowSec();
 
-  const rows = db
-    .prepare(
-      `SELECT id, apply_url FROM internships
-       WHERE is_open = 1 AND duplicate_of IS NULL
-       ORDER BY COALESCE(link_checked_at, 0) ASC, last_seen_at DESC
-       LIMIT ?`,
-    )
-    .all(limit) as { id: string; apply_url: string }[];
+  const rows = await q<{ id: string; apply_url: string }>(
+    `SELECT id, apply_url FROM internships
+     WHERE is_open = 1 AND duplicate_of IS NULL
+     ORDER BY COALESCE(link_checked_at, 0) ASC, last_seen_at DESC
+     LIMIT ?`,
+    [limit],
+  );
 
   let closed = 0;
   let alive = 0;
   let errors = 0;
-
-  const markChecked = db.prepare(
-    'UPDATE internships SET link_status = ?, link_checked_at = ? WHERE id = ?',
-  );
-  const markClosed = db.prepare(
-    `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'dead-link',
-        closed_at = ?, link_status = ?, link_checked_at = ? WHERE id = ?`,
-  );
 
   await mapPool(rows, opts.concurrency ?? 5, async (row) => {
     const result = await checkLink(row.apply_url);
@@ -724,10 +716,18 @@ export async function verifyLinks(
       return; // couldn't reach it; leave the listing alone
     }
     if (result.closed || result.status >= 400) {
-      markClosed.run(now, result.status, now, row.id);
+      await exec(
+        `UPDATE internships SET is_open = 0, status = 'closed', close_reason = 'dead-link',
+            closed_at = ?, link_status = ?, link_checked_at = ? WHERE id = ?`,
+        [now, result.status, now, row.id],
+      );
       closed++;
     } else {
-      markChecked.run(result.status, now, row.id);
+      await exec('UPDATE internships SET link_status = ?, link_checked_at = ? WHERE id = ?', [
+        result.status,
+        now,
+        row.id,
+      ]);
       alive++;
     }
   });

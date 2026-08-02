@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { Funnel, GoalMeter, HBarChart, WeeklyColumns } from '@/components/charts';
 import { AlertIcon, EmptyState, PageHeader, SectionTitle, StatTile, StatusBadge } from '@/components/ui';
+import { getUserId } from '@/lib/auth';
 import { catalogStats } from '@/lib/query';
 import { dashboardStats } from '@/lib/repo';
 import { STATUS_META } from '@/lib/types';
@@ -8,9 +10,11 @@ import { formatDate, formatDateTime, relativeTime, titleCase } from '@/lib/util'
 
 export const dynamic = 'force-dynamic';
 
-export default function DashboardPage() {
-  const stats = dashboardStats();
-  const catalog = catalogStats();
+export default async function DashboardPage() {
+  const userId = await getUserId();
+  if (!userId) redirect('/login?next=/dashboard');
+
+  const [stats, catalog] = await Promise.all([dashboardStats(userId), catalogStats()]);
 
   const statusBars = stats.byStatus
     .filter((row) => row.count > 0)

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createSupabaseBrowser } from '@/lib/supabase/client';
 import { ThemeToggle } from './ThemeToggle';
 
 const LINKS = [
@@ -18,9 +19,10 @@ const LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState<{ open: number; active: number } | null>(null);
-  const [readOnly, setReadOnly] = useState(false);
+  const [auth, setAuth] = useState<{ authenticated: boolean; email: string | null } | null>(null);
 
   // Close the mobile drawer whenever navigation happens.
   useEffect(() => setOpen(false), [pathname]);
@@ -32,13 +34,19 @@ export function Nav() {
       .then((data) => {
         if (cancelled || !data) return;
         setCounts({ open: data.catalog?.open ?? 0, active: data.dashboard?.active ?? 0 });
-        setReadOnly(Boolean(data.readOnly));
+        setAuth({ authenticated: Boolean(data.authenticated), email: data.email ?? null });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
   }, [pathname]);
+
+  const signOut = async () => {
+    await createSupabaseBrowser().auth.signOut();
+    router.push('/');
+    router.refresh();
+  };
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -120,18 +128,24 @@ export function Nav() {
             className="border-t p-3 text-[0.6875rem] leading-relaxed"
             style={{ borderColor: 'var(--line)', color: 'var(--ink-muted)' }}
           >
-            {readOnly ? (
+            {auth?.authenticated ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="min-w-0 truncate" title={auth.email ?? undefined}>
+                  {auth.email ?? 'Signed in'}
+                </p>
+                <button type="button" className="link shrink-0" onClick={signOut}>
+                  Sign out
+                </button>
+              </div>
+            ) : auth ? (
               <p>
-                <strong style={{ color: 'var(--ink-secondary)' }}>Read-only demo.</strong> Search and
-                filters work on real listings. Saving is disabled because this host has no writable
-                storage — clone the repo and run it locally to track applications.
+                <Link href="/login" className="link" style={{ color: 'var(--accent)' }}>
+                  Sign in
+                </Link>{' '}
+                to save searches, shortlist roles, and track applications. Browsing is open to
+                everyone.
               </p>
-            ) : (
-              <p>
-                Everything is stored locally in <code>data/internfinder.db</code>. No account, no
-                cloud, no tracking.
-              </p>
-            )}
+            ) : null}
           </div>
         </div>
       </nav>

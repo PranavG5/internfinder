@@ -1,4 +1,4 @@
-import { getDb, jsonArray, nowSec, type DB } from './db';
+import { exec, jsonArray, nowSec, one, q } from './db';
 import {
   APP_STATUSES,
   RESPONDED_STATUSES,
@@ -10,17 +10,35 @@ import {
 } from './types';
 import { DAY, toHourly } from './util';
 
+/**
+ * All tracker and profile data belongs to a signed-in user, so every function
+ * here takes the Supabase auth user id and scopes each statement by it. The
+ * server connects with the service credential (which bypasses RLS), so this
+ * scoping is the authorization layer — never query these tables without it.
+ */
+
 // ------------------------------------------------------------------- Profile
 
-export function getProfile(db: DB = getDb()): ProfileView {
-  const row = db.prepare('SELECT * FROM profile WHERE id = 1').get() as Profile;
+export async function getProfile(userId: string): Promise<ProfileView> {
+  let row = await one<Profile>('SELECT * FROM profiles WHERE user_id = ?', [userId]);
+  if (!row) {
+    // The on-signup trigger normally creates this; cover accounts that predate it.
+    const now = nowSec();
+    await exec(
+      `INSERT INTO profiles (user_id, created_at, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT (user_id) DO NOTHING`,
+      [userId, now, now],
+    );
+    row = await one<Profile>('SELECT * FROM profiles WHERE user_id = ?', [userId]);
+  }
+  const profile = row!;
   return {
-    ...row,
-    skills: jsonArray(row.skills_json),
-    preferred_seasons: jsonArray(row.preferred_seasons_json),
-    preferred_years: jsonArray(row.preferred_years_json),
-    preferred_fields: jsonArray(row.preferred_fields_json),
-    preferred_locations: jsonArray(row.preferred_locations_json),
+    ...profile,
+    skills: jsonArray(profile.skills_json),
+    preferred_seasons: jsonArray(profile.preferred_seasons_json),
+    preferred_years: jsonArray(profile.preferred_years_json),
+    preferred_fields: jsonArray(profile.preferred_fields_json),
+    preferred_locations: jsonArray(profile.preferred_locations_json),
   };
 }
 
@@ -39,7 +57,12 @@ const PROFILE_ARRAYS: Record<string, string> = {
   preferred_locations: 'preferred_locations_json',
 };
 
-export function updateProfile(patch: Record<string, unknown>, db: DB = getDb()): ProfileView {
+export async function updateProfile(
+  userId: string,
+  patch: Record<string, unknown>,
+): Promise<ProfileView> {
+  await getProfile(userId); // ensure the row exists
+
   const sets: string[] = [];
   const params: unknown[] = [];
 
@@ -59,10 +82,10 @@ export function updateProfile(patch: Record<string, unknown>, db: DB = getDb()):
 
   if (sets.length > 0) {
     sets.push('updated_at = ?');
-    params.push(nowSec());
-    db.prepare(`UPDATE profile SET ${sets.join(', ')} WHERE id = 1`).run(...params);
+    params.push(nowSec(), userId);
+    await exec(`UPDATE profiles SET ${sets.join(', ')} WHERE user_id = ?`, params);
   }
-  return getProfile(db);
+  return getProfile(userId);
 }
 
 // -------------------------------------------------------------- Applications
@@ -81,18 +104,20 @@ const APP_SORTS: Record<string, string> = {
   created: 'created_at DESC',
   deadline: 'CASE WHEN deadline IS NULL THEN 1 ELSE 0 END, deadline ASC',
   applied: 'CASE WHEN applied_at IS NULL THEN 1 ELSE 0 END, applied_at DESC',
-  company: 'company COLLATE NOCASE ASC',
+  company: 'lower(company) ASC',
   priority: 'priority DESC, updated_at DESC',
   status: 'status ASC, updated_at DESC',
 };
 
-export function listApplications(
+export async function listApplications(
+  userId: string,
   filters: ApplicationFilters = {},
-  db: DB = getDb(),
-): Application[] {
+): Promise<Application[]> {
   const where: string[] = [];
   const params: unknown[] = [];
 
+  where.push('user_id = ?');
+  params.push(userId);
   where.push('archived = ?');
   params.push(filters.archived ? 1 : 0);
 
@@ -109,19 +134,20 @@ export function listApplications(
     params.push(...filters.field);
   }
   if (filters.q) {
-    where.push('(company LIKE ? OR role LIKE ? OR notes LIKE ?)');
+    where.push('(company ILIKE ? OR role ILIKE ? OR notes ILIKE ?)');
     const like = `%${filters.q}%`;
     params.push(like, like, like);
   }
 
   const order = APP_SORTS[filters.sort ?? 'updated'] ?? APP_SORTS.updated;
-  return db
-    .prepare(`SELECT * FROM applications WHERE ${where.join(' AND ')} ORDER BY ${order}`)
-    .all(...params) as Application[];
+  return q<Application>(
+    `SELECT * FROM applications WHERE ${where.join(' AND ')} ORDER BY ${order}`,
+    params,
+  );
 }
 
-export function getApplication(id: number, db: DB = getDb()): Application | null {
-  return (db.prepare('SELECT * FROM applications WHERE id = ?').get(id) as Application) ?? null;
+export async function getApplication(userId: string, id: number): Promise<Application | null> {
+  return one<Application>('SELECT * FROM applications WHERE id = ? AND user_id = ?', [id, userId]);
 }
 
 const APP_FIELDS = [
@@ -150,12 +176,15 @@ export interface CreateApplicationInput extends Record<string, unknown> {
   role: string;
 }
 
-export function createApplication(input: CreateApplicationInput, db: DB = getDb()): Application {
+export async function createApplication(
+  userId: string,
+  input: CreateApplicationInput,
+): Promise<Application> {
   const now = nowSec();
   const status = (coerce('status', input.status ?? 'interested') as AppStatus) ?? 'interested';
 
-  const columns: string[] = [];
-  const values: unknown[] = [];
+  const columns: string[] = ['user_id'];
+  const values: unknown[] = [userId];
   for (const key of APP_FIELDS) {
     const value = coerce(key, input[key]);
     if (value === undefined) continue;
@@ -171,40 +200,34 @@ export function createApplication(input: CreateApplicationInput, db: DB = getDb(
   columns.push('created_at', 'updated_at', 'last_activity_at');
   values.push(now, now, now);
 
-  const id = Number(
-    (
-      db
-        .prepare(
-          `INSERT INTO applications (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-        )
-        .run(...values) as { lastInsertRowid: number | bigint }
-    ).lastInsertRowid,
+  const row = await one<{ id: number }>(
+    `INSERT INTO applications (${columns.join(', ')})
+     VALUES (${columns.map(() => '?').join(', ')}) RETURNING id`,
+    values,
   );
+  const id = row!.id;
 
-  addEvent(
-    {
-      application_id: id,
-      type: 'created',
-      to_status: status,
-      title: `Added to tracker as ${status.replace(/_/g, ' ')}`,
-      occurred_at: now,
-    },
-    db,
-  );
+  await addEvent(userId, {
+    application_id: id,
+    type: 'created',
+    to_status: status,
+    title: `Added to tracker as ${status.replace(/_/g, ' ')}`,
+    occurred_at: now,
+  });
 
-  return getApplication(id, db)!;
+  return (await getApplication(userId, id))!;
 }
 
 /**
  * Patch an application. Status transitions are recorded in the event log and
  * date-stamp `applied_at` the first time the role is actually submitted.
  */
-export function updateApplication(
+export async function updateApplication(
+  userId: string,
   id: number,
   patch: Record<string, unknown>,
-  db: DB = getDb(),
-): Application | null {
-  const before = getApplication(id, db);
+): Promise<Application | null> {
+  const before = await getApplication(userId, id);
   if (!before) return null;
 
   const now = nowSec();
@@ -230,32 +253,32 @@ export function updateApplication(
   if (sets.length === 0) return before;
 
   sets.push('updated_at = ?', 'last_activity_at = ?');
-  params.push(now, now, id);
-  db.prepare(`UPDATE applications SET ${sets.join(', ')} WHERE id = ?`).run(...params);
+  params.push(now, now, id, userId);
+  await exec(
+    `UPDATE applications SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`,
+    params,
+  );
 
   if (statusChanged) {
-    addEvent(
-      {
-        application_id: id,
-        type: 'status_change',
-        from_status: before.status,
-        to_status: newStatus,
-        title: `${label(before.status)} → ${label(newStatus)}`,
-        occurred_at: now,
-      },
-      db,
-    );
+    await addEvent(userId, {
+      application_id: id,
+      type: 'status_change',
+      from_status: before.status,
+      to_status: newStatus,
+      title: `${label(before.status)} → ${label(newStatus)}`,
+      occurred_at: now,
+    });
   }
 
-  return getApplication(id, db);
+  return getApplication(userId, id);
 }
 
 function label(status: string): string {
   return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function deleteApplication(id: number, db: DB = getDb()): boolean {
-  return db.prepare('DELETE FROM applications WHERE id = ?').run(id).changes > 0;
+export async function deleteApplication(userId: string, id: number): Promise<boolean> {
+  return (await exec('DELETE FROM applications WHERE id = ? AND user_id = ?', [id, userId])) > 0;
 }
 
 // -------------------------------------------------------------------- Events
@@ -270,15 +293,18 @@ export interface EventInput {
   occurred_at?: number | null;
 }
 
-export function addEvent(input: EventInput, db: DB = getDb()) {
+export async function addEvent(userId: string, input: EventInput): Promise<number | null> {
+  // The application must belong to this user; otherwise the event is refused.
+  const app = await getApplication(userId, input.application_id);
+  if (!app) return null;
+
   const now = nowSec();
-  const id = db
-    .prepare(
-      `INSERT INTO application_events
-         (application_id, type, from_status, to_status, title, body, occurred_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
+  const row = await one<{ id: number }>(
+    `INSERT INTO application_events
+       (user_id, application_id, type, from_status, to_status, title, body, occurred_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+    [
+      userId,
       input.application_id,
       input.type,
       input.from_status ?? null,
@@ -287,27 +313,29 @@ export function addEvent(input: EventInput, db: DB = getDb()) {
       input.body ?? null,
       input.occurred_at ?? now,
       now,
-    ).lastInsertRowid;
-
-  db.prepare('UPDATE applications SET last_activity_at = ?, updated_at = ? WHERE id = ?').run(
-    now,
-    now,
-    input.application_id,
+    ],
   );
 
-  return Number(id);
+  await exec(
+    'UPDATE applications SET last_activity_at = ?, updated_at = ? WHERE id = ? AND user_id = ?',
+    [now, now, input.application_id, userId],
+  );
+
+  return row?.id ?? null;
 }
 
-export function listEvents(applicationId: number, db: DB = getDb()) {
-  return db
-    .prepare(
-      'SELECT * FROM application_events WHERE application_id = ? ORDER BY occurred_at DESC, id DESC',
-    )
-    .all(applicationId);
+export async function listEvents(userId: string, applicationId: number) {
+  return q(
+    `SELECT * FROM application_events
+     WHERE application_id = ? AND user_id = ? ORDER BY occurred_at DESC, id DESC`,
+    [applicationId, userId],
+  );
 }
 
-export function deleteEvent(id: number, db: DB = getDb()): boolean {
-  return db.prepare('DELETE FROM application_events WHERE id = ?').run(id).changes > 0;
+export async function deleteEvent(userId: string, id: number): Promise<boolean> {
+  return (
+    (await exec('DELETE FROM application_events WHERE id = ? AND user_id = ?', [id, userId])) > 0
+  );
 }
 
 // -------------------------------------------------- Interviews / contacts / offers / tasks
@@ -338,26 +366,38 @@ const HAS_UPDATED_AT: Record<ChildTable, boolean> = {
   tasks: false,
 };
 
-export function listChildren(table: ChildTable, applicationId?: number, db: DB = getDb()) {
+export async function listChildren(table: ChildTable, userId: string, applicationId?: number) {
   const order =
     table === 'interviews'
       ? 'COALESCE(scheduled_at, 0) ASC, round ASC'
       : table === 'tasks'
-        ? 'done ASC, COALESCE(due_at, 9e18) ASC'
+        ? 'done ASC, COALESCE(due_at, 9000000000000000000) ASC'
         : 'id DESC';
 
   if (applicationId == null) {
-    return db.prepare(`SELECT * FROM ${table} ORDER BY ${order}`).all();
+    return q(`SELECT * FROM ${table} WHERE user_id = ? ORDER BY ${order}`, [userId]);
   }
-  return db
-    .prepare(`SELECT * FROM ${table} WHERE application_id = ? ORDER BY ${order}`)
-    .all(applicationId);
+  return q(
+    `SELECT * FROM ${table} WHERE application_id = ? AND user_id = ? ORDER BY ${order}`,
+    [applicationId, userId],
+  );
 }
 
-export function createChild(table: ChildTable, input: Record<string, unknown>, db: DB = getDb()) {
+export async function createChild(
+  table: ChildTable,
+  userId: string,
+  input: Record<string, unknown>,
+) {
+  // A child row may only attach to an application this user owns.
+  const appId = input.application_id != null ? Number(input.application_id) : null;
+  if (appId != null) {
+    const app = await getApplication(userId, appId);
+    if (!app) return null;
+  }
+
   const now = nowSec();
-  const columns: string[] = [];
-  const values: unknown[] = [];
+  const columns: string[] = ['user_id'];
+  const values: unknown[] = [userId];
 
   for (const key of CHILD_TABLES[table]) {
     if (!(key in input)) continue;
@@ -374,20 +414,19 @@ export function createChild(table: ChildTable, input: Record<string, unknown>, d
     values.push(now);
   }
 
-  const id = db
-    .prepare(
-      `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`,
-    )
-    .run(...values).lastInsertRowid;
-
-  return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(Number(id));
+  const row = await one<{ id: number }>(
+    `INSERT INTO ${table} (${columns.join(', ')})
+     VALUES (${columns.map(() => '?').join(', ')}) RETURNING id`,
+    values,
+  );
+  return one(`SELECT * FROM ${table} WHERE id = ?`, [row!.id]);
 }
 
-export function updateChild(
+export async function updateChild(
   table: ChildTable,
+  userId: string,
   id: number,
   patch: Record<string, unknown>,
-  db: DB = getDb(),
 ) {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -406,76 +445,104 @@ export function updateChild(
     params.push(patch.done ? nowSec() : null);
   }
 
-  if (sets.length === 0) return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+  if (sets.length === 0) {
+    return one(`SELECT * FROM ${table} WHERE id = ? AND user_id = ?`, [id, userId]);
+  }
 
   if (HAS_UPDATED_AT[table]) {
     sets.push('updated_at = ?');
     params.push(nowSec());
   }
-  params.push(id);
-  db.prepare(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`).run(...params);
-  return db.prepare(`SELECT * FROM ${table} WHERE id = ?`).get(id);
+  params.push(id, userId);
+  await exec(`UPDATE ${table} SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`, params);
+  return one(`SELECT * FROM ${table} WHERE id = ? AND user_id = ?`, [id, userId]);
 }
 
-export function deleteChild(table: ChildTable, id: number, db: DB = getDb()): boolean {
-  return db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id).changes > 0;
+export async function deleteChild(table: ChildTable, userId: string, id: number): Promise<boolean> {
+  return (await exec(`DELETE FROM ${table} WHERE id = ? AND user_id = ?`, [id, userId])) > 0;
 }
 
 // ------------------------------------------------- Bookmarks / hidden / saved searches
 
-export function toggleBookmark(internshipId: string, note?: string, db: DB = getDb()): boolean {
-  const existing = db
-    .prepare('SELECT 1 FROM bookmarks WHERE internship_id = ?')
-    .get(internshipId);
-  if (existing) {
-    db.prepare('DELETE FROM bookmarks WHERE internship_id = ?').run(internshipId);
-    return false;
-  }
-  db.prepare('INSERT INTO bookmarks (internship_id, note, created_at) VALUES (?, ?, ?)').run(
+export async function toggleBookmark(
+  userId: string,
+  internshipId: string,
+  note?: string,
+): Promise<boolean> {
+  const removed = await exec('DELETE FROM bookmarks WHERE user_id = ? AND internship_id = ?', [
+    userId,
     internshipId,
-    note ?? null,
-    nowSec(),
+  ]);
+  if (removed > 0) return false;
+  await exec(
+    `INSERT INTO bookmarks (user_id, internship_id, note, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (user_id, internship_id) DO NOTHING`,
+    [userId, internshipId, note ?? null, nowSec()],
   );
   return true;
 }
 
-export function hideListing(internshipId: string, reason?: string, db: DB = getDb()): void {
-  db.prepare(
-    `INSERT INTO hidden_listings (internship_id, reason, created_at) VALUES (?, ?, ?)
-     ON CONFLICT(internship_id) DO UPDATE SET reason = excluded.reason`,
-  ).run(internshipId, reason ?? null, nowSec());
+export async function hideListing(
+  userId: string,
+  internshipId: string,
+  reason?: string,
+): Promise<void> {
+  await exec(
+    `INSERT INTO hidden_listings (user_id, internship_id, reason, created_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (user_id, internship_id) DO UPDATE SET reason = excluded.reason`,
+    [userId, internshipId, reason ?? null, nowSec()],
+  );
 }
 
-export function unhideListing(internshipId: string, db: DB = getDb()): void {
-  db.prepare('DELETE FROM hidden_listings WHERE internship_id = ?').run(internshipId);
+export async function unhideListing(userId: string, internshipId: string): Promise<void> {
+  await exec('DELETE FROM hidden_listings WHERE user_id = ? AND internship_id = ?', [
+    userId,
+    internshipId,
+  ]);
 }
 
-export function listSavedSearches(db: DB = getDb()) {
-  return db.prepare('SELECT * FROM saved_searches ORDER BY created_at DESC').all() as {
-    id: number;
-    name: string;
-    query_json: string;
-    alert: number;
-    last_seen_at: number | null;
-    created_at: number;
-  }[];
+export interface SavedSearchRow {
+  id: number;
+  name: string;
+  query_json: string;
+  alert: number;
+  last_seen_at: number | null;
+  created_at: number;
 }
 
-export function createSavedSearch(name: string, query: string, alert = true, db: DB = getDb()) {
-  const id = db
-    .prepare(
-      'INSERT INTO saved_searches (name, query_json, alert, last_seen_at, created_at) VALUES (?, ?, ?, ?, ?)',
-    )
-    .run(name, query, alert ? 1 : 0, nowSec(), nowSec()).lastInsertRowid;
-  return db.prepare('SELECT * FROM saved_searches WHERE id = ?').get(Number(id));
+export async function listSavedSearches(userId: string): Promise<SavedSearchRow[]> {
+  return q<SavedSearchRow>(
+    'SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC',
+    [userId],
+  );
 }
 
-export function deleteSavedSearch(id: number, db: DB = getDb()): boolean {
-  return db.prepare('DELETE FROM saved_searches WHERE id = ?').run(id).changes > 0;
+export async function createSavedSearch(
+  userId: string,
+  name: string,
+  query: string,
+  alert = true,
+) {
+  const row = await one<{ id: number }>(
+    `INSERT INTO saved_searches (user_id, name, query_json, alert, last_seen_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?) RETURNING id`,
+    [userId, name, query, alert ? 1 : 0, nowSec(), nowSec()],
+  );
+  return one('SELECT * FROM saved_searches WHERE id = ?', [row!.id]);
 }
 
-export function touchSavedSearch(id: number, db: DB = getDb()): void {
-  db.prepare('UPDATE saved_searches SET last_seen_at = ? WHERE id = ?').run(nowSec(), id);
+export async function deleteSavedSearch(userId: string, id: number): Promise<boolean> {
+  return (
+    (await exec('DELETE FROM saved_searches WHERE id = ? AND user_id = ?', [id, userId])) > 0
+  );
+}
+
+export async function touchSavedSearch(userId: string, id: number): Promise<void> {
+  await exec('UPDATE saved_searches SET last_seen_at = ? WHERE id = ? AND user_id = ?', [
+    nowSec(),
+    id,
+    userId,
+  ]);
 }
 
 // ---------------------------------------------------------------- Dashboard
@@ -514,9 +581,12 @@ export interface DashboardStats {
   medianDaysToResponse: number | null;
 }
 
-export function dashboardStats(db: DB = getDb()): DashboardStats {
+export async function dashboardStats(userId: string): Promise<DashboardStats> {
   const now = nowSec();
-  const apps = db.prepare('SELECT * FROM applications WHERE archived = 0').all() as Application[];
+  const apps = await q<Application>(
+    'SELECT * FROM applications WHERE user_id = ? AND archived = 0',
+    [userId],
+  );
 
   const byStatusMap = new Map<AppStatus, number>();
   for (const status of APP_STATUSES) byStatusMap.set(status, 0);
@@ -586,22 +656,61 @@ export function dashboardStats(db: DB = getDb()): DashboardStats {
     });
   }
 
-  const upcomingDeadlines = db
-    .prepare(
-      `SELECT * FROM applications
-       WHERE archived = 0 AND deadline IS NOT NULL AND deadline >= ?
-         AND status IN ('interested', 'preparing')
-       ORDER BY deadline ASC LIMIT 8`,
-    )
-    .all(now - DAY) as Application[];
-
-  const nextActions = db
-    .prepare(
-      `SELECT * FROM applications
-       WHERE archived = 0 AND next_action IS NOT NULL AND next_action <> ''
-       ORDER BY CASE WHEN next_action_at IS NULL THEN 1 ELSE 0 END, next_action_at ASC LIMIT 8`,
-    )
-    .all() as Application[];
+  const [upcomingDeadlines, nextActions, followUpRows, ghostedRows, upcomingInterviews, openTasks, responseRows, profile] =
+    await Promise.all([
+      q<Application>(
+        `SELECT * FROM applications
+         WHERE user_id = ? AND archived = 0 AND deadline IS NOT NULL AND deadline >= ?
+           AND status IN ('interested', 'preparing')
+         ORDER BY deadline ASC LIMIT 8`,
+        [userId, now - DAY],
+      ),
+      q<Application>(
+        `SELECT * FROM applications
+         WHERE user_id = ? AND archived = 0 AND next_action IS NOT NULL AND next_action <> ''
+         ORDER BY CASE WHEN next_action_at IS NULL THEN 1 ELSE 0 END, next_action_at ASC LIMIT 8`,
+        [userId],
+      ),
+      q<Application>(
+        `SELECT * FROM applications
+         WHERE user_id = ? AND archived = 0 AND status = 'applied' AND applied_at IS NOT NULL
+           AND applied_at <= ? AND applied_at > ?
+         ORDER BY applied_at ASC LIMIT 10`,
+        [userId, now - 10 * DAY, now - 30 * DAY],
+      ),
+      q<Application>(
+        `SELECT * FROM applications
+         WHERE user_id = ? AND archived = 0 AND status = 'applied' AND applied_at IS NOT NULL AND applied_at <= ?
+         ORDER BY applied_at ASC LIMIT 10`,
+        [userId, now - 30 * DAY],
+      ),
+      q<DashboardStats['upcomingInterviews'][number]>(
+        `SELECT iv.id, iv.application_id, iv.kind, iv.round, iv.scheduled_at, iv.location,
+                a.company, a.role
+         FROM interviews iv JOIN applications a ON a.id = iv.application_id
+         WHERE iv.user_id = ? AND iv.scheduled_at IS NOT NULL AND iv.scheduled_at >= ?
+           AND (iv.outcome IS NULL OR iv.outcome = 'pending')
+         ORDER BY iv.scheduled_at ASC LIMIT 8`,
+        [userId, now - DAY],
+      ),
+      q<DashboardStats['openTasks'][number]>(
+        `SELECT t.id, t.title, t.due_at, t.application_id, a.company
+         FROM tasks t LEFT JOIN applications a ON a.id = t.application_id
+         WHERE t.user_id = ? AND t.done = 0
+         ORDER BY CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END, t.due_at ASC LIMIT 10`,
+        [userId],
+      ),
+      q<{ applied_at: number; first_response: number }>(
+        `SELECT a.applied_at, MIN(e.occurred_at) AS first_response
+         FROM applications a
+         JOIN application_events e ON e.application_id = a.id
+         WHERE a.user_id = ? AND a.applied_at IS NOT NULL AND e.type = 'status_change'
+           AND e.to_status IN ('online_assessment', 'phone_screen', 'interviewing', 'final_round', 'offer', 'accepted', 'rejected')
+         GROUP BY a.id`,
+        [userId],
+      ),
+      getProfile(userId),
+    ]);
 
   // Submitted 10-29 days ago with no response: time for a nudge.
   const withDays = (rows: Application[]) =>
@@ -610,68 +719,14 @@ export function dashboardStats(db: DB = getDb()): DashboardStats {
       daysSince: a.applied_at ? Math.floor((now - a.applied_at) / DAY) : 0,
     }));
 
-  const needsFollowUp = withDays(
-    db
-      .prepare(
-        `SELECT * FROM applications
-         WHERE archived = 0 AND status = 'applied' AND applied_at IS NOT NULL
-           AND applied_at <= ? AND applied_at > ?
-         ORDER BY applied_at ASC LIMIT 10`,
-      )
-      .all(now - 10 * DAY, now - 30 * DAY) as Application[],
-  );
-
-  const possiblyGhosted = withDays(
-    db
-      .prepare(
-        `SELECT * FROM applications
-         WHERE archived = 0 AND status = 'applied' AND applied_at IS NOT NULL AND applied_at <= ?
-         ORDER BY applied_at ASC LIMIT 10`,
-      )
-      .all(now - 30 * DAY) as Application[],
-  );
-
-  const upcomingInterviews = db
-    .prepare(
-      `SELECT iv.id, iv.application_id, iv.kind, iv.round, iv.scheduled_at, iv.location,
-              a.company, a.role
-       FROM interviews iv JOIN applications a ON a.id = iv.application_id
-       WHERE iv.scheduled_at IS NOT NULL AND iv.scheduled_at >= ?
-         AND (iv.outcome IS NULL OR iv.outcome = 'pending')
-       ORDER BY iv.scheduled_at ASC LIMIT 8`,
-    )
-    .all(now - DAY) as DashboardStats['upcomingInterviews'];
-
-  const openTasks = db
-    .prepare(
-      `SELECT t.id, t.title, t.due_at, t.application_id, a.company
-       FROM tasks t LEFT JOIN applications a ON a.id = t.application_id
-       WHERE t.done = 0
-       ORDER BY CASE WHEN t.due_at IS NULL THEN 1 ELSE 0 END, t.due_at ASC LIMIT 10`,
-    )
-    .all() as DashboardStats['openTasks'];
-
   // Median days from submitting to the first sign of life.
-  const responseGaps = (
-    db
-      .prepare(
-        `SELECT a.applied_at, MIN(e.occurred_at) AS first_response
-         FROM applications a
-         JOIN application_events e ON e.application_id = a.id
-         WHERE a.applied_at IS NOT NULL AND e.type = 'status_change'
-           AND e.to_status IN ('online_assessment', 'phone_screen', 'interviewing', 'final_round', 'offer', 'accepted', 'rejected')
-         GROUP BY a.id`,
-      )
-      .all() as { applied_at: number; first_response: number }[]
-  )
+  const responseGaps = responseRows
     .map((r) => Math.round((r.first_response - r.applied_at) / DAY))
     .filter((d) => d >= 0)
     .sort((a, b) => a - b);
 
   const medianDaysToResponse =
     responseGaps.length > 0 ? responseGaps[Math.floor(responseGaps.length / 2)] : null;
-
-  const profile = getProfile(db);
 
   return {
     total: apps.length,
@@ -694,8 +749,8 @@ export function dashboardStats(db: DB = getDb()): DashboardStats {
     weeklyGoal: profile.weekly_goal,
     upcomingDeadlines,
     nextActions,
-    needsFollowUp,
-    possiblyGhosted,
+    needsFollowUp: withDays(followUpRows),
+    possiblyGhosted: withDays(ghostedRows),
     upcomingInterviews,
     openTasks,
     medianDaysToResponse,
@@ -714,8 +769,8 @@ export interface InsightGroup {
   responseRate: number;
 }
 
-export function insights(db: DB = getDb()) {
-  const apps = db.prepare('SELECT * FROM applications').all() as Application[];
+export async function insights(userId: string) {
+  const apps = await q<Application>('SELECT * FROM applications WHERE user_id = ?', [userId]);
 
   const group = (pick: (a: Application) => string | null): InsightGroup[] => {
     const map = new Map<string, Application[]>();
@@ -798,18 +853,20 @@ export interface OfferComparison {
 }
 
 /** Compare offers on a like-for-like basis, adjusted for cost of living. */
-export function offerComparison(db: DB = getDb()): OfferComparison[] {
-  const rows = db
-    .prepare(
-      `SELECT o.*, a.company, a.role, a.id AS application_id
-       FROM offers o JOIN applications a ON a.id = o.application_id
-       ORDER BY o.created_at DESC`,
-    )
-    .all() as (Omit<OfferComparison, 'hourly' | 'earnings' | 'extras' | 'total' | 'adjustedTotal'> & {
-    signing_bonus: number | null;
-    housing_stipend: number | null;
-    relocation: number | null;
-  })[];
+export async function offerComparison(userId: string): Promise<OfferComparison[]> {
+  const rows = await q<
+    Omit<OfferComparison, 'hourly' | 'earnings' | 'extras' | 'total' | 'adjustedTotal'> & {
+      signing_bonus: number | null;
+      housing_stipend: number | null;
+      relocation: number | null;
+    }
+  >(
+    `SELECT o.*, a.company, a.role, a.id AS application_id
+     FROM offers o JOIN applications a ON a.id = o.application_id
+     WHERE o.user_id = ?
+     ORDER BY o.created_at DESC`,
+    [userId],
+  );
 
   return rows.map((row): OfferComparison => {
     const rate = Number(row.pay_rate) || 0;

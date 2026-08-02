@@ -1,4 +1,5 @@
 import { handler, ok } from '@/lib/api';
+import { getUserId } from '@/lib/auth';
 import { computeFacets, parseSearchParams } from '@/lib/query';
 import { getProfile } from '@/lib/repo';
 
@@ -12,5 +13,7 @@ export const dynamic = 'force-dynamic';
 export const GET = handler(async (request: Request) => {
   const url = new URL(request.url);
   const query = parseSearchParams(url.searchParams);
-  return ok(computeFacets(query, getProfile()));
+  const userId = await getUserId();
+  const profile = userId ? await getProfile(userId) : null;
+  return ok(await computeFacets(query, profile, userId));
 });

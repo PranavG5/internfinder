@@ -127,6 +127,62 @@ export async function fetchRemoteOk(): Promise<RawListing[]> {
     .filter((l) => l.applyUrl && l.company && l.title);
 }
 
+// -------------------------------------------------------------------- Jobicy
+
+interface JobicyJob {
+  id?: number | string;
+  url?: string;
+  jobTitle?: string;
+  companyName?: string;
+  companyLogo?: string;
+  jobIndustry?: string[] | string;
+  jobType?: string[] | string;
+  jobGeo?: string;
+  jobLevel?: string;
+  jobExcerpt?: string;
+  jobDescription?: string;
+  pubDate?: string;
+  annualSalaryMin?: number;
+  annualSalaryMax?: number;
+  salaryCurrency?: string;
+}
+
+export async function fetchJobicy(): Promise<RawListing[]> {
+  // Jobicy caps count at 100; the internship tag keeps the feed on-topic.
+  const data = await getJson<{ jobs?: JobicyJob[] }>(
+    'https://jobicy.com/api/v2/remote-jobs?count=100&tag=intern',
+  );
+  const jobs = data?.jobs ?? [];
+
+  return jobs
+    .filter((job) => job.id && job.jobTitle && job.companyName && job.url)
+    .map((job): RawListing => {
+      const asList = (v: string[] | string | undefined): string[] =>
+        Array.isArray(v) ? v : v ? [v] : [];
+      return {
+        source: 'jobicy',
+        sourceKind: 'board',
+        sourceId: String(job.id),
+        company: decodeHtmlEntities(job.companyName ?? ''),
+        title: decodeHtmlEntities(job.jobTitle ?? ''),
+        applyUrl: job.url ?? '',
+        description: job.jobDescription ?? job.jobExcerpt ?? null,
+        locations: job.jobGeo ? [job.jobGeo] : ['Remote'],
+        remoteFlag: true,
+        terms: [],
+        datePosted: job.pubDate ? Math.floor(Date.parse(job.pubDate) / 1000) || null : null,
+        dateUpdated: null,
+        categoryHint: [...asList(job.jobIndustry), ...asList(job.jobType)].slice(0, 6).join(', '),
+        salaryMin: job.annualSalaryMin ?? null,
+        salaryMax: job.annualSalaryMax ?? null,
+        salaryPeriod: job.annualSalaryMin ? 'year' : null,
+        salaryCurrency: job.salaryCurrency ?? 'USD',
+        activeFlag: true,
+        tags: asList(job.jobType).slice(0, 6),
+      };
+    });
+}
+
 // ----------------------------------------------------------------- Arbeitnow
 
 interface ArbeitnowJob {
@@ -145,8 +201,8 @@ interface ArbeitnowJob {
 export async function fetchArbeitnow(): Promise<RawListing[]> {
   const collected: ArbeitnowJob[] = [];
 
-  // Paginate a few pages deep; the feed is ordered newest-first.
-  for (let page = 1; page <= 5; page++) {
+  // Paginate deep; the feed is ordered newest-first and Europe posts steadily.
+  for (let page = 1; page <= 12; page++) {
     const data = await getJson<{ data?: ArbeitnowJob[] }>(
       `https://www.arbeitnow.com/api/job-board-api?page=${page}`,
     );

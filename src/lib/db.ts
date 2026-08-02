@@ -1,24 +1,23 @@
-import Database from 'better-sqlite3';
-import fs from 'node:fs';
-import path from 'node:path';
+import { Pool, types, type PoolClient } from 'pg';
 
-export type DB = Database.Database;
+/**
+ * Postgres connection layer (Supabase).
+ *
+ * The app carries two SQLite-era conventions on purpose, so the query code
+ * stays small and portable:
+ *   - timestamps are unix seconds in bigint columns
+ *   - boolean-ish flags are 0/1 smallints
+ *
+ * int8/numeric come back as JS numbers (values here are unix seconds and
+ * counts, all far below 2^53), and queries are written with `?` placeholders
+ * which are rewritten to `$n` before execution.
+ */
 
-let cached: DB | null = null;
+// int8 (counts, unix seconds) and numeric → number.
+types.setTypeParser(20, (v) => Number(v));
+types.setTypeParser(1700, (v) => parseFloat(v));
 
-function resolveSchemaPath(): string {
-  const candidates = [
-    path.join(process.cwd(), 'src', 'lib', 'schema.sql'),
-    path.join(process.cwd(), 'schema.sql'),
-    path.join(import.meta.dirname ?? '.', 'schema.sql'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  throw new Error(
-    `Could not locate schema.sql. Looked in:\n${candidates.map((c) => `  - ${c}`).join('\n')}`,
-  );
-}
+let pool: Pool | null = null;
 
 /**
  * Read an environment variable at runtime.
@@ -33,208 +32,117 @@ function env(name: string): string | undefined {
   return process.env[key];
 }
 
-/**
- * Where the database lives.
- *
- * On a serverless host the working directory is not always the project root, so
- * an existing file is looked up across the plausible locations before falling
- * back to the canonical path used when creating one.
- */
-function dbCandidates(): string[] {
-  return [
-    path.join(process.cwd(), 'data', 'internfinder.db'),
-    path.join(process.cwd(), '.next', 'server', 'data', 'internfinder.db'),
-    path.join(import.meta.dirname ?? '.', '..', '..', 'data', 'internfinder.db'),
-    '/var/task/data/internfinder.db',
-  ];
-}
-
-export function dbPath(): string {
-  const override = env('INTERNFINDER_DB');
-  if (override) return override;
-
-  const candidates = dbCandidates();
-  for (const candidate of candidates) {
-    try {
-      if (fs.existsSync(candidate)) return candidate;
-    } catch {
-      // An unreadable candidate is simply not the one.
-    }
+export function databaseUrl(): string {
+  const url = env('SUPABASE_DB_URL') ?? env('DATABASE_URL');
+  if (!url) {
+    throw new Error(
+      'No database configured. Set SUPABASE_DB_URL (or DATABASE_URL) to your Supabase ' +
+        'Postgres connection string — Dashboard → Connect → Session pooler. ' +
+        'Locally you can point it at any Postgres 14+ database.',
+    );
   }
-  return candidates[0];
+  return url;
 }
 
-/**
- * Explain a missing database in terms of what was actually on disk.
- *
- * A bare "unable to open database file" from SQLite says nothing about whether
- * the catalog was never built or simply landed somewhere unexpected, which is
- * the only thing worth knowing when a deploy fails.
- */
-function missingDbError(): Error {
-  const lines = dbCandidates().map((candidate) => {
-    const dir = path.dirname(candidate);
-    let detail: string;
-    try {
-      detail = fs.existsSync(dir)
-        ? `directory exists, contains: ${fs.readdirSync(dir).slice(0, 8).join(', ') || '(empty)'}`
-        : 'directory does not exist';
-    } catch (err) {
-      detail = `could not read directory (${(err as Error).message})`;
-    }
-    return `  - ${candidate}\n      ${detail}`;
+/** True when talking to a local (non-TLS) database. */
+function isLocalUrl(url: string): boolean {
+  return /@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(url) || !/@/.test(url);
+}
+
+export function getPool(): Pool {
+  if (pool) return pool;
+  const url = databaseUrl();
+  pool = new Pool({
+    connectionString: url,
+    max: Number(env('INTERNFINDER_PG_POOL') ?? 10),
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 15_000,
+    // Supabase requires TLS; its chain is not in the default trust store.
+    ssl: isLocalUrl(url) ? undefined : { rejectUnauthorized: false },
   });
-
-  return new Error(
-    'No internship catalog found. It is built during deploy by "npm run vercel-build" — ' +
-      'if this is a serverless host, check that the build command actually ran the sync step. ' +
-      `Locally, run "npm run sync".\nLooked in:\n${lines.join('\n')}\ncwd: ${process.cwd()}`,
-  );
+  return pool;
 }
 
-/** Set once the database is actually open, from how it opened rather than a guess. */
-let readOnlyMode: boolean | null = null;
-
-/**
- * Best guess at read-only-ness *before* the database has been opened.
- * Only a hint: the authoritative answer comes from actually opening the file.
- */
-function readOnlyHint(): boolean {
-  const flag = env('INTERNFINDER_READONLY');
-  if (flag === '0') return false;
-  if (flag) return true;
-  // During the build itself we need writes, so only lock down at runtime.
-  return env('VERCEL') === '1' && env('NEXT_PHASE') !== 'phase-production-build';
+/** Rewrite `?` placeholders to Postgres `$1, $2, …`. */
+export function toDollarParams(sql: string): string {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
 }
 
-/**
- * True when the database cannot be written to.
- *
- * This is deliberately derived from how the file actually opened rather than
- * from environment sniffing. Detecting the host by environment variable proved
- * unreliable — Vercel only exposes VERCEL=1 at runtime when a project setting is
- * enabled — and getting it wrong meant every request died on a raw SQLite
- * "unable to open database file" instead of degrading to browse-only.
- */
-export function isReadOnly(): boolean {
-  const flag = env('INTERNFINDER_READONLY');
-  if (flag === '0') return false;
-  if (flag) return true;
+type Queryable = Pick<Pool, 'query'> | Pick<PoolClient, 'query'>;
 
-  if (readOnlyMode === null) {
-    try {
-      getDb();
-    } catch {
-      // Fall through to the hint; the caller will surface the real error.
-    }
-  }
-  return readOnlyMode ?? readOnlyHint();
+/** Run a query and return all rows. */
+export async function q<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = getPool(),
+): Promise<T[]> {
+  const result = await client.query(toDollarParams(sql), params as unknown[]);
+  return result.rows as T[];
 }
 
-/**
- * Opens (and on first call, creates) the database.
- *
- * Tries read-write first, then falls back to read-only if the filesystem won't
- * allow it — which is what makes a serverless deploy work without any
- * host-specific configuration. The connection is cached for the process.
- */
-export function getDb(): DB {
-  if (cached) return cached;
-
-  const file = dbPath();
-
-  if (!readOnlyHint()) {
-    try {
-      cached = openWritable(file);
-      readOnlyMode = false;
-      return cached;
-    } catch (err) {
-      // Only a missing catalog is fatal. Anything else (a read-only mount, no
-      // permission to create the WAL) means we can still serve what shipped.
-      if (!fs.existsSync(file)) throw missingDbError();
-      void err;
-    }
-  }
-
-  if (!fs.existsSync(file)) throw missingDbError();
-
-  // No schema exec and no WAL here: both need write access.
-  cached = new Database(file, { readonly: true, fileMustExist: true });
-  readOnlyMode = true;
-  return cached;
+/** Run a query and return the first row, or null. */
+export async function one<T = Record<string, unknown>>(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = getPool(),
+): Promise<T | null> {
+  const rows = await q<T>(sql, params, client);
+  return rows[0] ?? null;
 }
 
-function openWritable(file: string): DB {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+/** Run a statement and return the affected-row count. */
+export async function exec(
+  sql: string,
+  params: unknown[] = [],
+  client: Queryable = getPool(),
+): Promise<number> {
+  const result = await client.query(toDollarParams(sql), params as unknown[]);
+  return result.rowCount ?? 0;
+}
 
-  const db = new Database(file);
-
-  // better-sqlite3 opens the file lazily, so a read-only filesystem is not
-  // reported by the constructor — it surfaces on the first statement, long
-  // after the caller could have fallen back. Force the question now by taking a
-  // write lock and immediately releasing it.
+/** Run `fn` inside a transaction on a dedicated connection. */
+export async function tx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
   try {
-    db.exec('BEGIN IMMEDIATE; ROLLBACK;');
+    await client.query('BEGIN');
+    const result = await fn(client);
+    await client.query('COMMIT');
+    return result;
   } catch (err) {
-    db.close();
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // The original error is the one worth reporting.
+    }
     throw err;
-  }
-
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  db.pragma('busy_timeout = 5000');
-  db.exec(fs.readFileSync(resolveSchemaPath(), 'utf8'));
-
-  seedProfileRow(db);
-  return db;
-}
-
-/**
- * Collapse the write-ahead log into the main file and leave the database in
- * rollback-journal mode.
- *
- * A WAL-mode database cannot be opened on a read-only filesystem at all: WAL
- * needs a writable `-shm` companion file. Shipping the catalog to a serverless
- * host therefore requires taking it out of WAL first. Local use is unaffected —
- * the next writable open turns WAL straight back on.
- */
-export function finalizeForReadOnly(db: DB = getDb()): void {
-  try {
-    db.pragma('wal_checkpoint(TRUNCATE)');
-    db.pragma('journal_mode = DELETE');
-  } catch {
-    // Best effort: a database that is already read-only needs no finalizing.
+  } finally {
+    client.release();
   }
 }
 
-function seedProfileRow(db: DB) {
-  const exists = db.prepare('SELECT 1 FROM profile WHERE id = 1').get();
-  if (exists) return;
-  const now = nowSec();
-  db.prepare(
-    `INSERT INTO profile (id, created_at, updated_at, preferred_seasons_json, preferred_years_json,
-       preferred_fields_json, preferred_locations_json, skills_json)
-     VALUES (1, ?, ?, '[]', '[]', '[]', '[]', '[]')`,
-  ).run(now, now);
+/** Close the pool (used by CLI scripts so the process can exit). */
+export async function closePool(): Promise<void> {
+  if (pool) {
+    await pool.end();
+    pool = null;
+  }
 }
 
 export function nowSec(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-export function meta(key: string): string | null {
-  const row = getDb().prepare('SELECT value FROM app_meta WHERE key = ?').get(key) as
-    | { value: string }
-    | undefined;
+export async function meta(key: string): Promise<string | null> {
+  const row = await one<{ value: string }>('SELECT value FROM app_meta WHERE key = ?', [key]);
   return row?.value ?? null;
 }
 
-export function setMeta(key: string, value: string): void {
-  getDb()
-    .prepare(
-      'INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    )
-    .run(key, value);
+export async function setMeta(key: string, value: string): Promise<void> {
+  await exec(
+    'INSERT INTO app_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+    [key, value],
+  );
 }
 
 /** Parse a JSON column that may be null/malformed, always returning an array. */

@@ -6,16 +6,11 @@
  *   npm run sync -- --only greenhouse:figma
  *   npm run sync -- --max-boards 25       # cap ATS boards touched this run
  *   npm run sync -- --verify 200          # then link-check 200 listings
+ *
+ * Writes to the Postgres database in SUPABASE_DB_URL (or DATABASE_URL).
  */
-/**
- * CLI scripts always own the database file, even when VERCEL=1 marks the
- * runtime as read-only — the whole point of the build step is to write the
- * catalog before the serverless runtime takes over.
- */
-process.env.INTERNFINDER_READONLY = '0';
-
 import { runSync, verifyLinks } from '../src/lib/sync';
-import { finalizeForReadOnly, getDb } from '../src/lib/db';
+import { closePool, one } from '../src/lib/db';
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -58,11 +53,10 @@ async function main() {
     for (const error of result.errors.slice(0, 15)) console.log(`    · ${error}`);
   }
 
-  const db = getDb();
-  const open = db
-    .prepare('SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL')
-    .get() as { n: number };
-  console.log(`\n  Open internships in catalog: ${open.n.toLocaleString()}`);
+  const open = await one<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL',
+  );
+  console.log(`\n  Open internships in catalog: ${(open?.n ?? 0).toLocaleString()}`);
 
   if (verifyCount > 0) {
     console.log(`\nVerifying ${verifyCount} application links…`);
@@ -70,11 +64,7 @@ async function main() {
     console.log(`  ${v.alive} alive · ${v.closed} closed · ${v.errors} unreachable`);
   }
 
-  // Leave a single self-contained file with no -wal/-shm alongside it, so the
-  // catalog can be shipped to a host that cannot write. Locally this is a no-op
-  // in practice: the next writable open switches WAL back on.
-  finalizeForReadOnly(db);
-
+  await closePool();
   console.log(`\nDone in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
 }
 

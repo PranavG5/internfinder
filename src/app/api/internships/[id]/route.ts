@@ -1,6 +1,7 @@
 import { fail, handler, ok } from '@/lib/api';
-import { getDb } from '@/lib/db';
-import { toView } from '@/lib/query';
+import { getUserId } from '@/lib/auth';
+import { one } from '@/lib/db';
+import { toViews } from '@/lib/query';
 import { getProfile } from '@/lib/repo';
 import type { Internship } from '@/lib/types';
 
@@ -10,10 +11,12 @@ export const dynamic = 'force-dynamic';
 export const GET = handler(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
-    const row = getDb().prepare('SELECT * FROM internships WHERE id = ?').get(id) as
-      | Internship
-      | undefined;
+    const row = await one<Internship>('SELECT * FROM internships WHERE id = ?', [id]);
     if (!row) return fail('Internship not found', 404);
-    return ok(toView(row, getProfile()));
+
+    const userId = await getUserId();
+    const profile = userId ? await getProfile(userId) : null;
+    const [view] = await toViews([row], profile, userId);
+    return ok(view);
   },
 );

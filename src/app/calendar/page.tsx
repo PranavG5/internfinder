@@ -1,5 +1,8 @@
 import Link from 'next/link';
-import { getDb } from '@/lib/db';
+import { redirect } from 'next/navigation';
+import { getUserId } from '@/lib/auth';
+import { q } from '@/lib/db';
+import { getProfile } from '@/lib/repo';
 import { EmptyState, PageHeader, SectionTitle, StatusBadge } from '@/components/ui';
 import { CalendarCopyLink } from '@/components/CalendarCopyLink';
 import type { AppStatus } from '@/lib/types';
@@ -19,16 +22,14 @@ interface CalendarEntry {
 }
 
 /** Pull every dated thing the student needs to show up for into one list. */
-function loadEntries(): CalendarEntry[] {
-  const db = getDb();
+async function loadEntries(userId: string): Promise<CalendarEntry[]> {
   const entries: CalendarEntry[] = [];
 
-  for (const row of db
-    .prepare(
-      `SELECT id, company, role, deadline, status FROM applications
-       WHERE deadline IS NOT NULL AND archived = 0`,
-    )
-    .all() as { id: number; company: string; role: string; deadline: number; status: AppStatus }[]) {
+  for (const row of await q<{ id: number; company: string; role: string; deadline: number; status: AppStatus }>(
+    `SELECT id, company, role, deadline, status FROM applications
+     WHERE user_id = ? AND deadline IS NOT NULL AND archived = 0`,
+    [userId],
+  )) {
     entries.push({
       key: `deadline-${row.id}`,
       at: row.deadline,
@@ -41,14 +42,7 @@ function loadEntries(): CalendarEntry[] {
     });
   }
 
-  for (const row of db
-    .prepare(
-      `SELECT iv.id, iv.kind, iv.round, iv.scheduled_at, iv.location, iv.duration_min,
-              a.company, a.role, a.id AS application_id
-       FROM interviews iv JOIN applications a ON a.id = iv.application_id
-       WHERE iv.scheduled_at IS NOT NULL`,
-    )
-    .all() as {
+  for (const row of await q<{
     id: number;
     kind: string;
     round: number;
@@ -58,7 +52,13 @@ function loadEntries(): CalendarEntry[] {
     company: string;
     role: string;
     application_id: number;
-  }[]) {
+  }>(
+    `SELECT iv.id, iv.kind, iv.round, iv.scheduled_at, iv.location, iv.duration_min,
+            a.company, a.role, a.id AS application_id
+     FROM interviews iv JOIN applications a ON a.id = iv.application_id
+     WHERE iv.user_id = ? AND iv.scheduled_at IS NOT NULL`,
+    [userId],
+  )) {
     entries.push({
       key: `interview-${row.id}`,
       at: row.scheduled_at,
@@ -72,19 +72,18 @@ function loadEntries(): CalendarEntry[] {
     });
   }
 
-  for (const row of db
-    .prepare(
-      `SELECT t.id, t.title, t.due_at, t.application_id, a.company FROM tasks t
-       LEFT JOIN applications a ON a.id = t.application_id
-       WHERE t.done = 0 AND t.due_at IS NOT NULL`,
-    )
-    .all() as {
+  for (const row of await q<{
     id: number;
     title: string;
     due_at: number;
     application_id: number | null;
     company: string | null;
-  }[]) {
+  }>(
+    `SELECT t.id, t.title, t.due_at, t.application_id, a.company FROM tasks t
+     LEFT JOIN applications a ON a.id = t.application_id
+     WHERE t.user_id = ? AND t.done = 0 AND t.due_at IS NOT NULL`,
+    [userId],
+  )) {
     entries.push({
       key: `task-${row.id}`,
       at: row.due_at,
@@ -96,13 +95,12 @@ function loadEntries(): CalendarEntry[] {
     });
   }
 
-  for (const row of db
-    .prepare(
-      `SELECT o.id, o.respond_by, a.company, a.id AS application_id FROM offers o
-       JOIN applications a ON a.id = o.application_id
-       WHERE o.respond_by IS NOT NULL AND o.status IN ('received', 'negotiating')`,
-    )
-    .all() as { id: number; respond_by: number; company: string; application_id: number }[]) {
+  for (const row of await q<{ id: number; respond_by: number; company: string; application_id: number }>(
+    `SELECT o.id, o.respond_by, a.company, a.id AS application_id FROM offers o
+     JOIN applications a ON a.id = o.application_id
+     WHERE o.user_id = ? AND o.respond_by IS NOT NULL AND o.status IN ('received', 'negotiating')`,
+    [userId],
+  )) {
     entries.push({
       key: `offer-${row.id}`,
       at: row.respond_by,
@@ -124,8 +122,11 @@ const KIND_LABEL: Record<CalendarEntry['kind'], string> = {
   offer: 'Offer',
 };
 
-export default function CalendarPage() {
-  const entries = loadEntries();
+export default async function CalendarPage() {
+  const userId = await getUserId();
+  if (!userId) redirect('/login?next=/calendar');
+
+  const [entries, profile] = await Promise.all([loadEntries(userId), getProfile(userId)]);
   const now = Math.floor(Date.now() / 1000);
   const todayStart = (() => {
     const d = new Date();
@@ -156,7 +157,7 @@ export default function CalendarPage() {
       <PageHeader
         title="Calendar"
         subtitle="Every deadline, interview, and to-do you're tracking, in date order."
-        actions={<CalendarCopyLink />}
+        actions={<CalendarCopyLink feedPath={`/api/calendar?token=${profile.calendar_token}`} />}
       />
 
       <div className="max-w-3xl space-y-6 p-4 sm:p-6">

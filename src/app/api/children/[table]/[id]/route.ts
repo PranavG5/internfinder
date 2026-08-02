@@ -1,4 +1,4 @@
-import { fail, handler, ok, parseId, readJson, readOnlyBlock } from '@/lib/api';
+import { fail, handler, ok, parseId, readJson, requireUserId } from '@/lib/api';
 import { deleteChild, updateChild, type ChildTable } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
@@ -17,23 +17,23 @@ async function resolve(params: Ctx['params']) {
 
 /** PATCH /api/children/:table/:id */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { table, id } = await resolve(params);
   if (!table) return fail('Unknown collection', 404);
   if (!id) return fail('Invalid id', 422);
-  return ok({ item: updateChild(table, id, await readJson(request)) });
+  return ok({ item: await updateChild(table, auth, id, await readJson(request)) });
 });
 
 /** DELETE /api/children/:table/:id */
 export const DELETE = handler(async (_request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const { table, id } = await resolve(params);
   if (!table) return fail('Unknown collection', 404);
   if (!id) return fail('Invalid id', 422);
-  if (!deleteChild(table, id)) return fail('Not found', 404);
+  if (!(await deleteChild(table, auth, id))) return fail('Not found', 404);
   return ok({ deleted: true });
 });

@@ -4,13 +4,14 @@ import { useState } from 'react';
 
 /**
  * Copies the ICS feed URL. Subscribing (rather than downloading) means the
- * calendar keeps updating as deadlines and interviews change.
+ * calendar keeps updating as deadlines and interviews change. The URL carries
+ * the account's personal token, since calendar apps can't send cookies.
  */
-export function CalendarCopyLink() {
+export function CalendarCopyLink({ feedPath = '/api/calendar' }: { feedPath?: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
-    const url = `${window.location.origin}/api/calendar`;
+    const url = `${window.location.origin}${feedPath}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -26,7 +27,7 @@ export function CalendarCopyLink() {
       <button type="button" className="btn btn-sm" onClick={copy}>
         {copied ? '✓ Link copied' : 'Copy calendar feed URL'}
       </button>
-      <a className="btn btn-sm" href="/api/calendar" download="internfinder.ics">
+      <a className="btn btn-sm" href={feedPath} download="internfinder.ics">
         Download .ics
       </a>
     </>

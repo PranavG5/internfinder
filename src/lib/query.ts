@@ -1,4 +1,4 @@
-import { getDb, jsonArray } from './db';
+import { getPool, jsonArray, one, q } from './db';
 import { computeFit, type FitCandidate } from './fit';
 import {
   toFtsQuery,
@@ -23,8 +23,15 @@ interface Clause {
  * Build the WHERE clauses, keyed by the filter dimension they came from.
  * Keying them lets the facet counts leave out a dimension's own filter, so
  * each facet shows what you'd get if you changed just that one choice.
+ *
+ * `userId` scopes the personal dimensions (shortlist, dismissals, tracked
+ * roles); anonymous visitors simply don't have those filters applied.
  */
-function buildClauses(query: SearchQuery, profile: ProfileView | null = null): Map<string, Clause> {
+function buildClauses(
+  query: SearchQuery,
+  profile: ProfileView | null = null,
+  userId: string | null = null,
+): Map<string, Clause> {
   const clauses = new Map<string, Clause>();
   const set = (key: string, sql: string, params: unknown[] = []) =>
     clauses.set(key, { sql, params });
@@ -43,10 +50,10 @@ function buildClauses(query: SearchQuery, profile: ProfileView | null = null): M
   if (query.q) {
     const fts = toFtsQuery(query.q);
     if (fts) {
-      set('q', 'i.rowid IN (SELECT rowid FROM internships_fts WHERE internships_fts MATCH ?)', [fts]);
+      set('q', "i.fts @@ to_tsquery('english', ?)", [fts]);
     } else {
       const like = `%${query.q}%`;
-      set('q', '(i.title LIKE ? OR i.company LIKE ?)', [like, like]);
+      set('q', '(i.title ILIKE ? OR i.company ILIKE ?)', [like, like]);
     }
   }
 
@@ -75,7 +82,7 @@ function buildClauses(query: SearchQuery, profile: ProfileView | null = null): M
   }
   if (query.location) {
     const like = `%${query.location}%`;
-    set('location', '(i.primary_location LIKE ? OR i.locations_json LIKE ? OR i.city LIKE ? OR i.region LIKE ?)', [
+    set('location', '(i.primary_location ILIKE ? OR i.locations_json ILIKE ? OR i.city ILIKE ? OR i.region ILIKE ?)', [
       like,
       like,
       like,
@@ -166,7 +173,7 @@ function buildClauses(query: SearchQuery, profile: ProfileView | null = null): M
   }
   if (query.excludeKeywords.length) {
     const ands = query.excludeKeywords
-      .map(() => '(i.title NOT LIKE ? AND i.company NOT LIKE ?)')
+      .map(() => '(i.title NOT ILIKE ? AND i.company NOT ILIKE ?)')
       .join(' AND ');
     set(
       'exclude',
@@ -178,16 +185,24 @@ function buildClauses(query: SearchQuery, profile: ProfileView | null = null): M
     set('noCoverLetter', 'i.requires_cover_letter = 0');
   }
   if (query.bookmarkedOnly) {
-    set('bookmarked', 'i.id IN (SELECT internship_id FROM bookmarks)');
+    if (userId) {
+      set('bookmarked', 'i.id IN (SELECT internship_id FROM bookmarks WHERE user_id = ?)', [userId]);
+    } else {
+      // An anonymous visitor has no shortlist; asking for it yields nothing.
+      set('bookmarked', '1 = 0');
+    }
   }
-  if (query.hideApplied) {
+  if (query.hideApplied && userId) {
     set(
       'hideApplied',
-      'i.id NOT IN (SELECT internship_id FROM applications WHERE internship_id IS NOT NULL)',
+      'i.id NOT IN (SELECT internship_id FROM applications WHERE internship_id IS NOT NULL AND user_id = ?)',
+      [userId],
     );
   }
   // Dismissed listings never come back.
-  set('hidden', 'i.id NOT IN (SELECT internship_id FROM hidden_listings)');
+  if (userId) {
+    set('hidden', 'i.id NOT IN (SELECT internship_id FROM hidden_listings WHERE user_id = ?)', [userId]);
+  }
 
   // "Only roles I'm eligible for" is expressed in SQL rather than filtered
   // afterwards, so result counts and pagination stay correct.
@@ -243,22 +258,24 @@ const ORDER_BY: Record<SortKey, string> = {
           WHEN 'month' THEN i.salary_min / 173.8
           WHEN 'year' THEN i.salary_min / 2080.0
           ELSE 0 END DESC`,
-  company: 'i.company COLLATE NOCASE ASC, i.title COLLATE NOCASE ASC',
-  title: 'i.title COLLATE NOCASE ASC',
+  company: 'lower(i.company) ASC, lower(i.title) ASC',
+  title: 'lower(i.title) ASC',
   fit: 'i.quality DESC', // re-sorted in JS after fit scores are computed
 };
 
 /** How many rows a fit-sorted search will score in memory before ranking. */
 const FIT_SORT_CEILING = 4000;
 
-export function searchInternships(query: SearchQuery, profile: ProfileView | null): SearchResult {
-  const db = getDb();
-  const clauses = buildClauses(query, profile);
+export async function searchInternships(
+  query: SearchQuery,
+  profile: ProfileView | null,
+  userId: string | null = null,
+): Promise<SearchResult> {
+  const clauses = buildClauses(query, profile, userId);
   const { where, params } = combine(clauses);
 
-  const total = (
-    db.prepare(`SELECT COUNT(*) AS n FROM internships i ${where}`).get(...params) as { n: number }
-  ).n;
+  const total =
+    (await one<{ n: number }>(`SELECT COUNT(*) AS n FROM internships i ${where}`, params))?.n ?? 0;
 
   const offset = (query.page - 1) * query.limit;
   let rows: Internship[];
@@ -267,18 +284,18 @@ export function searchInternships(query: SearchQuery, profile: ProfileView | nul
   if (needsFitRanking) {
     // Fit depends on the profile, so it can't be expressed in SQL. Score a
     // bounded slice of matches and rank those.
-    rows = db
-      .prepare(`SELECT i.* FROM internships i ${where} ORDER BY ${ORDER_BY.relevance} LIMIT ?`)
-      .all(...params, FIT_SORT_CEILING) as Internship[];
+    rows = await q<Internship>(
+      `SELECT i.* FROM internships i ${where} ORDER BY ${ORDER_BY.relevance} LIMIT ?`,
+      [...params, FIT_SORT_CEILING],
+    );
   } else {
-    rows = db
-      .prepare(
-        `SELECT i.* FROM internships i ${where} ORDER BY ${ORDER_BY[query.sort]} LIMIT ? OFFSET ?`,
-      )
-      .all(...params, query.limit, offset) as Internship[];
+    rows = await q<Internship>(
+      `SELECT i.* FROM internships i ${where} ORDER BY ${ORDER_BY[query.sort]} LIMIT ? OFFSET ?`,
+      [...params, query.limit, offset],
+    );
   }
 
-  let views = toViews(rows, profile);
+  let views = await toViews(rows, profile, userId);
 
   if (needsFitRanking) {
     views.sort((a, b) => (b.fit?.score ?? 0) - (a.fit?.score ?? 0));
@@ -297,31 +314,34 @@ export function searchInternships(query: SearchQuery, profile: ProfileView | nul
 /**
  * Convert DB rows into client-facing views.
  * Bookmark and application state is loaded in two queries for the whole batch
- * rather than per row.
+ * rather than per row; anonymous visitors skip both.
  */
-export function toViews(rows: Internship[], profile: ProfileView | null): InternshipView[] {
+export async function toViews(
+  rows: Internship[],
+  profile: ProfileView | null,
+  userId: string | null = null,
+): Promise<InternshipView[]> {
   if (rows.length === 0) return [];
-  const db = getDb();
   const ids = rows.map((r) => r.id);
-  const placeholders = ids.map(() => '?').join(',');
 
-  const bookmarked = new Set(
-    (
-      db
-        .prepare(`SELECT internship_id FROM bookmarks WHERE internship_id IN (${placeholders})`)
-        .all(...ids) as { internship_id: string }[]
-    ).map((r) => r.internship_id),
-  );
-
+  const bookmarked = new Set<string>();
   const apps = new Map<string, { id: number; status: string }>();
-  for (const row of db
-    .prepare(
-      `SELECT internship_id, id, status FROM applications
-       WHERE internship_id IN (${placeholders}) ORDER BY id ASC`,
-    )
-    .all(...ids) as { internship_id: string; id: number; status: string }[]) {
+
+  if (userId) {
+    const [bookmarkRows, appRows] = await Promise.all([
+      q<{ internship_id: string }>(
+        'SELECT internship_id FROM bookmarks WHERE user_id = ? AND internship_id = ANY(?)',
+        [userId, ids],
+      ),
+      q<{ internship_id: string; id: number; status: string }>(
+        `SELECT internship_id, id, status FROM applications
+         WHERE user_id = ? AND internship_id = ANY(?) ORDER BY id ASC`,
+        [userId, ids],
+      ),
+    ]);
+    for (const row of bookmarkRows) bookmarked.add(row.internship_id);
     // Later rows win, so the newest application for a listing is the one shown.
-    apps.set(row.internship_id, { id: row.id, status: row.status });
+    for (const row of appRows) apps.set(row.internship_id, { id: row.id, status: row.status });
   }
 
   return rows.map((row) => toView(row, profile, bookmarked, apps));
@@ -331,10 +351,9 @@ export function toViews(rows: Internship[], profile: ProfileView | null): Intern
 export function toView(
   row: Internship,
   profile: ProfileView | null,
-  bookmarked?: Set<string>,
-  apps?: Map<string, { id: number; status: string }>,
+  bookmarked: Set<string> = new Set(),
+  apps: Map<string, { id: number; status: string }> = new Map(),
 ): InternshipView {
-  const db = getDb();
   const locations = jsonArray(row.locations_json);
   const skills = jsonArray(row.skills_json);
   const degrees = jsonArray(row.degrees_json);
@@ -368,17 +387,7 @@ export function toView(
     quality: row.quality,
   };
 
-  // Use the preloaded batch when available; fall back to a lookup for single rows.
-  const isBookmarked = bookmarked
-    ? bookmarked.has(row.id)
-    : !!db.prepare('SELECT 1 FROM bookmarks WHERE internship_id = ?').get(row.id);
-  const app = apps
-    ? apps.get(row.id)
-    : (db
-        .prepare(
-          'SELECT id, status FROM applications WHERE internship_id = ? ORDER BY id DESC LIMIT 1',
-        )
-        .get(row.id) as { id: number; status: string } | undefined);
+  const app = apps.get(row.id);
 
   const {
     locations_json: _l,
@@ -388,8 +397,9 @@ export function toView(
     skills_json: _s,
     tags_json: _g,
     raw_json: _r,
+    fts: _f,
     ...rest
-  } = row;
+  } = row as Internship & { fts?: unknown };
 
   return {
     ...rest,
@@ -399,7 +409,7 @@ export function toView(
     class_years: classYears,
     skills,
     tags: jsonArray(row.tags_json),
-    bookmarked: isBookmarked,
+    bookmarked: bookmarked.has(row.id),
     applied: !!app,
     application_id: app?.id ?? null,
     application_status: (app?.status as InternshipView['application_status']) ?? null,
@@ -412,148 +422,145 @@ export function toView(
  * Each facet ignores its own filter, so the counts answer "what if I picked
  * this instead" rather than "how many of what I already chose".
  */
-export function computeFacets(query: SearchQuery, profile: ProfileView | null = null): Facets {
-  const db = getDb();
-  const clauses = buildClauses(query, profile);
+export async function computeFacets(
+  query: SearchQuery,
+  profile: ProfileView | null = null,
+  userId: string | null = null,
+): Promise<Facets> {
+  const clauses = buildClauses(query, profile, userId);
 
   /** Append an extra condition to a WHERE clause that may be empty. */
   const and = (where: string, extra: string): string =>
     where ? `${where} AND ${extra}` : `WHERE ${extra}`;
 
-  const countBy = (column: string, skip: string, limit = 40): FacetBucket[] => {
+  const countBy = async (column: string, skip: string, limit = 40): Promise<FacetBucket[]> => {
     const { where, params } = combine(clauses, skip);
-    const rows = db
-      .prepare(
-        `SELECT ${column} AS value, COUNT(*) AS count FROM internships i
-         ${and(where, `${column} IS NOT NULL AND ${column} <> ''`)}
-         GROUP BY ${column} ORDER BY count DESC, value ASC LIMIT ?`,
-      )
-      .all(...params, limit) as { value: string | number; count: number }[];
+    const rows = await q<{ value: string | number; count: number }>(
+      `SELECT ${column} AS value, COUNT(*) AS count FROM internships i
+       ${and(where, `${column} IS NOT NULL AND ${column}::text <> ''`)}
+       GROUP BY ${column} ORDER BY count DESC, value ASC LIMIT ?`,
+      [...params, limit],
+    );
     return rows.map((r) => ({ value: String(r.value), label: String(r.value), count: r.count }));
   };
 
-  // JSON array columns need a different treatment: count listings containing each value.
-  const countJsonValues = (
+  // JSON array columns: unnest the array and count listings containing each
+  // value. One aggregate query per column instead of one count per candidate.
+  const countJsonValues = async (
     column: string,
     skip: string,
-    candidates: string[],
-  ): FacetBucket[] => {
+    limit: number,
+  ): Promise<FacetBucket[]> => {
     const { where, params } = combine(clauses, skip);
-    const stmt = db.prepare(
-      `SELECT COUNT(*) AS n FROM internships i ${and(where, `${column} LIKE ?`)}`,
+    const rows = await q<{ value: string; count: number }>(
+      `SELECT v.value AS value, COUNT(DISTINCT i.id) AS count
+       FROM internships i
+       CROSS JOIN LATERAL jsonb_array_elements_text(${column}::jsonb) AS v(value)
+       ${and(where, `${column} LIKE '[%'`)}
+       GROUP BY v.value ORDER BY count DESC, v.value ASC LIMIT ?`,
+      [...params, limit],
     );
-    return candidates
-      .map((value) => ({
-        value,
-        label: value,
-        count: (stmt.get(...params, `%"${value}"%`) as { n: number }).n,
-      }))
-      .filter((b) => b.count > 0)
-      .sort((a, b) => b.count - a.count);
+    return rows.map((r) => ({ value: r.value, label: r.value, count: r.count }));
   };
 
-  const { where: totalWhere, params: totalParams } = combine(clauses);
-  const total = (
-    db.prepare(`SELECT COUNT(*) AS n FROM internships i ${totalWhere}`).get(...totalParams) as {
-      n: number;
-    }
-  ).n;
-
-  // Only offer values that exist in the catalog, so the sidebar never shows dead options.
-  const distinct = (column: string): string[] =>
-    (
-      db
-        .prepare(
-          `SELECT DISTINCT ${column} AS v FROM internships WHERE is_open = 1 AND ${column} IS NOT NULL AND ${column} <> '[]'`,
-        )
-        .all() as { v: string }[]
-    ).map((r) => r.v);
-
-  const degreeCandidates = [
-    ...new Set(distinct('degrees_json').flatMap((v) => jsonArray(v))),
-  ].slice(0, 12);
-  const classYearCandidates = [
-    ...new Set(distinct('class_years_json').flatMap((v) => jsonArray(v))),
-  ].slice(0, 12);
-  const skillCandidates = [
-    ...new Set(distinct('skills_json').flatMap((v) => jsonArray(v))),
-  ].slice(0, 60);
-
-  const companyRows = (() => {
+  const companiesPromise = (async () => {
     const { where, params } = combine(clauses, 'company');
-    return db
-      .prepare(
-        `SELECT company_slug AS value, company AS label, COUNT(*) AS count
-         FROM internships i ${where}
-         GROUP BY company_slug ORDER BY count DESC, label ASC LIMIT 60`,
-      )
-      .all(...params) as { value: string; label: string; count: number }[];
+    return q<{ value: string; label: string; count: number }>(
+      `SELECT company_slug AS value, MIN(company) AS label, COUNT(*) AS count
+       FROM internships i ${where}
+       GROUP BY company_slug ORDER BY count DESC, label ASC LIMIT 60`,
+      params,
+    );
   })();
 
-  const sourceRows = (() => {
+  const sourcesPromise = (async () => {
     const { where, params } = combine(clauses, 'source');
-    return db
-      .prepare(
-        `SELECT
-           CASE
-             WHEN instr(i.source, ':') > 0 THEN substr(i.source, 1, instr(i.source, ':') - 1)
-             ELSE i.source
-           END AS value,
-           COUNT(*) AS count
-         FROM internships i ${where}
-         GROUP BY value ORDER BY count DESC LIMIT 20`,
-      )
-      .all(...params) as { value: string; count: number }[];
+    return q<{ value: string; count: number }>(
+      `SELECT
+         CASE
+           WHEN position(':' in i.source) > 0 THEN substr(i.source, 1, position(':' in i.source) - 1)
+           ELSE i.source
+         END AS value,
+         COUNT(*) AS count
+       FROM internships i ${where}
+       GROUP BY value ORDER BY count DESC LIMIT 20`,
+      params,
+    );
   })();
+
+  const totalPromise = (async () => {
+    const { where, params } = combine(clauses);
+    return (await one<{ n: number }>(`SELECT COUNT(*) AS n FROM internships i ${where}`, params))?.n ?? 0;
+  })();
+
+  const [
+    seasons, years, fields, roleFamilies, programTypes, locationTypes,
+    countries, regions, sponsorship, degrees, classYears, skills,
+    companyRows, sourceRows, total,
+  ] = await Promise.all([
+    countBy('i.season', 'season', 8),
+    countBy('i.year', 'year', 10),
+    countBy('i.field', 'field', 30),
+    countBy('i.role_family', 'role', 45),
+    countBy('i.program_type', 'programType', 8),
+    countBy('i.location_type', 'locationType', 6),
+    countBy('i.country', 'country', 40),
+    countBy('i.region', 'region', 60),
+    countBy('i.sponsorship', 'sponsorship', 6),
+    countJsonValues('i.degrees_json', 'degree', 12),
+    countJsonValues('i.class_years_json', 'classYear', 12),
+    countJsonValues('i.skills_json', 'skill', 40),
+    companiesPromise,
+    sourcesPromise,
+    totalPromise,
+  ]);
 
   return {
-    seasons: countBy('i.season', 'season', 8),
-    years: countBy('i.year', 'year', 10),
-    fields: countBy('i.field', 'field', 30),
-    roleFamilies: countBy('i.role_family', 'role', 45),
-    programTypes: countBy('i.program_type', 'programType', 8),
-    locationTypes: countBy('i.location_type', 'locationType', 6),
-    countries: countBy('i.country', 'country', 40),
-    regions: countBy('i.region', 'region', 60),
-    sponsorship: countBy('i.sponsorship', 'sponsorship', 6),
-    degrees: countJsonValues('i.degrees_json', 'degree', degreeCandidates),
-    classYears: countJsonValues('i.class_years_json', 'classYear', classYearCandidates),
+    seasons,
+    years,
+    fields,
+    roleFamilies,
+    programTypes,
+    locationTypes,
+    countries,
+    regions,
+    sponsorship,
+    degrees,
+    classYears,
     companies: companyRows,
-    skills: countJsonValues('i.skills_json', 'skill', skillCandidates).slice(0, 40),
+    skills,
     sources: sourceRows.map((r) => ({ value: r.value, label: r.value, count: r.count })),
     total,
   };
 }
 
 /** Catalog-wide stats for the dashboard and sources page. */
-export function catalogStats() {
-  const db = getDb();
-  const one = <T>(sql: string, ...params: unknown[]): T => db.prepare(sql).get(...params) as T;
-
-  const open = one<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL',
-  ).n;
-  const closed = one<{ n: number }>('SELECT COUNT(*) AS n FROM internships WHERE is_open = 0').n;
-  const companies = one<{ n: number }>(
-    'SELECT COUNT(DISTINCT company_slug) AS n FROM internships WHERE is_open = 1',
-  ).n;
-  const withPay = one<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND salary_min IS NOT NULL',
-  ).n;
+export async function catalogStats() {
+  const pool = getPool();
+  void pool;
   const now = Math.floor(Date.now() / 1000);
-  const freshWeek = one<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND COALESCE(date_posted, first_seen_at) >= ?',
-    now - 7 * DAY,
-  ).n;
-  const closingSoon = one<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND deadline IS NOT NULL AND deadline BETWEEN ? AND ?',
-    now,
-    now + 14 * DAY,
-  ).n;
-  const lastSync = db
-    .prepare('SELECT * FROM sync_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1')
-    .get() as
-    | {
+
+  const [openRow, closedRow, companiesRow, withPayRow, freshRow, closingRow, lastSync, sourcesRow] =
+    await Promise.all([
+      one<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL',
+      ),
+      one<{ n: number }>('SELECT COUNT(*) AS n FROM internships WHERE is_open = 0'),
+      one<{ n: number }>(
+        'SELECT COUNT(DISTINCT company_slug) AS n FROM internships WHERE is_open = 1',
+      ),
+      one<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND salary_min IS NOT NULL',
+      ),
+      one<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND COALESCE(date_posted, first_seen_at) >= ?',
+        [now - 7 * DAY],
+      ),
+      one<{ n: number }>(
+        'SELECT COUNT(*) AS n FROM internships WHERE is_open = 1 AND duplicate_of IS NULL AND deadline IS NOT NULL AND deadline BETWEEN ? AND ?',
+        [now, now + 14 * DAY],
+      ),
+      one<{
         id: number;
         started_at: number;
         finished_at: number;
@@ -562,12 +569,18 @@ export function catalogStats() {
         inserted: number;
         closed: number;
         duration_ms: number;
-      }
-    | undefined;
+      }>('SELECT * FROM sync_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1'),
+      one<{ n: number }>('SELECT COUNT(*) AS n FROM source_configs WHERE enabled = 1'),
+    ]);
 
-  const sourceCount = one<{ n: number }>(
-    'SELECT COUNT(*) AS n FROM source_configs WHERE enabled = 1',
-  ).n;
-
-  return { open, closed, companies, withPay, freshWeek, closingSoon, lastSync, sourceCount };
+  return {
+    open: openRow?.n ?? 0,
+    closed: closedRow?.n ?? 0,
+    companies: companiesRow?.n ?? 0,
+    withPay: withPayRow?.n ?? 0,
+    freshWeek: freshRow?.n ?? 0,
+    closingSoon: closingRow?.n ?? 0,
+    lastSync: lastSync ?? undefined,
+    sourceCount: sourcesRow?.n ?? 0,
+  };
 }

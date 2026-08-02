@@ -1,27 +1,27 @@
-import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
-import { getDb, nowSec } from '@/lib/db';
+import { fail, handler, ok, readJson, requireUserId } from '@/lib/api';
+import { exec, nowSec, one, q } from '@/lib/db';
 import { boardFromUrl } from '@/lib/sources/seed';
 import { ensureSeedSources } from '@/lib/sync';
 
 export const dynamic = 'force-dynamic';
 
-const KINDS = ['greenhouse', 'lever', 'ashby', 'smartrecruiters', 'github', 'remoteok', 'arbeitnow'];
+const KINDS = [
+  'greenhouse', 'lever', 'ashby', 'smartrecruiters', 'workable',
+  'github', 'remoteok', 'arbeitnow', 'jobicy',
+];
 
 /** GET /api/sources — every configured source with its last sync outcome. */
 export const GET = handler(async () => {
-  const db = getDb();
-  ensureSeedSources(db);
+  await ensureSeedSources();
 
-  const sources = db
-    .prepare(
-      `SELECT s.*,
-              (SELECT COUNT(*) FROM internships i
-                WHERE i.is_open = 1 AND i.duplicate_of IS NULL
-                  AND (i.source = s.kind || ':' || s.token OR i.source = s.kind)) AS open_count
-       FROM source_configs s
-       ORDER BY s.enabled DESC, open_count DESC, s.kind, s.token`,
-    )
-    .all() as Record<string, unknown>[];
+  const sources = await q(
+    `SELECT s.*,
+            (SELECT COUNT(*) FROM internships i
+              WHERE i.is_open = 1 AND i.duplicate_of IS NULL
+                AND (i.source = s.kind || ':' || s.token OR i.source = s.kind)) AS open_count
+     FROM source_configs s
+     ORDER BY s.enabled DESC, open_count DESC, s.kind, s.token`,
+  );
 
   return ok({ sources });
 });
@@ -33,11 +33,10 @@ export const GET = handler(async () => {
  * a company's careers page, which is parsed into the right board.
  */
 export const POST = handler(async (request: Request) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const body = await readJson(request);
-  const db = getDb();
 
   let kind = typeof body.kind === 'string' ? body.kind.toLowerCase() : '';
   let token = typeof body.token === 'string' ? body.token.trim() : '';
@@ -47,7 +46,7 @@ export const POST = handler(async (request: Request) => {
     const detected = boardFromUrl(body.url.trim());
     if (!detected) {
       return fail(
-        'Could not recognize that URL. Supported boards: Greenhouse, Lever, Ashby, SmartRecruiters.',
+        'Could not recognize that URL. Supported boards: Greenhouse, Lever, Ashby, SmartRecruiters, Workable.',
         422,
       );
     }
@@ -60,17 +59,14 @@ export const POST = handler(async (request: Request) => {
   if (!token) return fail('token is required', 422);
   label ||= token;
 
-  const result = db
-    .prepare(
-      `INSERT INTO source_configs (kind, token, label, enabled, created_at)
-       VALUES (?, ?, ?, 1, ?)
-       ON CONFLICT(kind, token) DO UPDATE SET enabled = 1, label = excluded.label`,
-    )
-    .run(kind, token, label, nowSec());
+  const created = await exec(
+    `INSERT INTO source_configs (kind, token, label, enabled, created_at)
+     VALUES (?, ?, ?, 1, ?)
+     ON CONFLICT (kind, token) DO UPDATE SET enabled = 1, label = excluded.label`,
+    [kind, token, label, nowSec()],
+  );
 
-  const source = db
-    .prepare('SELECT * FROM source_configs WHERE kind = ? AND token = ?')
-    .get(kind, token);
+  const source = await one('SELECT * FROM source_configs WHERE kind = ? AND token = ?', [kind, token]);
 
-  return ok({ source, created: result.changes > 0 }, { status: 201 });
+  return ok({ source, created: created > 0 }, { status: 201 });
 });

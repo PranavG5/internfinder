@@ -1,4 +1,4 @@
-import { fail, handler, ok, readJson, readOnlyBlock } from '@/lib/api';
+import { fail, handler, ok, readJson, requireUserId } from '@/lib/api';
 import { createChild, listChildren, type ChildTable } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +13,9 @@ type Ctx = { params: Promise<{ table: string }> };
 
 /** GET /api/children/:table?application_id=1 — interviews, contacts, offers, or tasks. */
 export const GET = handler(async (request: Request, { params }: Ctx) => {
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
+
   const table = validTable((await params).table);
   if (!table) return fail('Unknown collection', 404);
 
@@ -20,13 +23,13 @@ export const GET = handler(async (request: Request, { params }: Ctx) => {
   const applicationId = raw ? Number(raw) : undefined;
   if (raw && !Number.isInteger(applicationId)) return fail('Invalid application_id', 422);
 
-  return ok({ items: listChildren(table, applicationId) });
+  return ok({ items: await listChildren(table, auth, applicationId) });
 });
 
 /** POST /api/children/:table */
 export const POST = handler(async (request: Request, { params }: Ctx) => {
-  const blocked = readOnlyBlock();
-  if (blocked) return blocked;
+  const auth = await requireUserId();
+  if (auth instanceof Response) return auth;
 
   const table = validTable((await params).table);
   if (!table) return fail('Unknown collection', 404);
@@ -42,5 +45,7 @@ export const POST = handler(async (request: Request, { params }: Ctx) => {
     return fail('title is required', 422);
   }
 
-  return ok({ item: createChild(table, body) }, { status: 201 });
+  const item = await createChild(table, auth, body);
+  if (!item) return fail('Application not found', 404);
+  return ok({ item }, { status: 201 });
 });
