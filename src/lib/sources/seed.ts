@@ -342,7 +342,6 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'github', token: 'vansh-summer', label: 'GitHub · vanshb03 Summer 2026' },
   { kind: 'github', token: 'simplify-newgrad', label: 'GitHub · SimplifyJobs New Grad' },
   { kind: 'amazon', token: '-', label: 'Amazon' },
-  { kind: 'microsoft', token: '-', label: 'Microsoft' },
   { kind: 'remoteok', token: '-', label: 'RemoteOK' },
   { kind: 'arbeitnow', token: '-', label: 'Arbeitnow (Europe)' },
   { kind: 'jobicy', token: '-', label: 'Jobicy (remote)' },
