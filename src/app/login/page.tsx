@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { createSupabaseBrowser } from '@/lib/supabase/client';
@@ -116,8 +115,8 @@ function LoginForm() {
       </button>
 
       <p className="mt-6 text-[0.75rem]" style={{ color: 'var(--ink-muted)' }}>
-        You can <Link href="/" className="link">browse every internship without an account</Link> —
-        signing in is only needed to save things.
+        An account is required to use InternFinder. It keeps your shortlist, fit preferences, and
+        application tracker private to you.
       </p>
     </div>
   );

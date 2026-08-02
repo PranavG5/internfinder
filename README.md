@@ -4,10 +4,10 @@ Finds internships that are **actually open**, filters them by everything a stude
 actually cares about, and tracks every application from "interested" to "accepted".
 
 The catalog lives in **Supabase Postgres** and refreshes itself on a schedule, so
-closed roles drop off the site without anyone redeploying. Users **create
-accounts** (Supabase Auth); each account keeps its own profile, fit preferences,
-shortlist, saved searches, and application tracker. Browsing and searching the
-catalog needs no account at all.
+closed roles drop off the site without anyone redeploying. The site is
+**account-only** (Supabase Auth): visitors sign up before they can search, and
+each account keeps its own profile, fit preferences, shortlist, saved searches,
+and application tracker.
 
 ---
 
@@ -117,10 +117,14 @@ least-recently-synced first, so repeated runs cover everything over time.
 
 ## Accounts
 
-- **Anonymous visitors** can search, filter, and read every listing.
-- **Signing up** (email + password, `/login`) unlocks everything personal: the
-  profile that powers fit scoring, the shortlist, dismissals, saved searches,
-  the application tracker, insights, and the calendar feed.
+- **An account is required.** Middleware turns away every request without a
+  session: pages redirect to `/login?next=…`, API routes return 401. The only
+  exceptions are `/login`, the `/auth/*` confirmation callback, and the two
+  routes that carry their own credentials (`/api/calendar`, `/api/cron/*`).
+- **Signing up** (email + password, `/login`) gives you the catalog plus
+  everything personal: the profile that powers fit scoring, the shortlist,
+  dismissals, saved searches, the application tracker, insights, and the
+  calendar feed.
 - Each user's rows live in Postgres keyed by their Supabase Auth id, with
   row-level security on every personal table as defense in depth.
 - A profile row is created automatically on signup; the personal iCalendar feed
