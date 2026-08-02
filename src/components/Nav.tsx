@@ -153,15 +153,15 @@ export function Nav() {
   );
 }
 
+/* The compass mark, matching public/favicon.svg. The lighter #0C447C plate is
+   the one that holds up against both the light and the dark nav surface. */
 function Logo() {
   return (
-    <span
-      className="flex h-7 w-7 items-center justify-center rounded-lg text-[0.8125rem] font-bold"
-      style={{ background: 'var(--accent)', color: 'var(--accent-ink)' }}
-      aria-hidden
-    >
-      if
-    </span>
+    <svg className="h-7 w-7" viewBox="0 0 64 64" aria-hidden>
+      <rect width="64" height="64" rx="12.8" fill="#0C447C" />
+      <circle cx="32" cy="32" r="20.5" fill="none" stroke="#B5D4F4" strokeWidth="5.5" />
+      <path d="M42.25 21.75 35.89 38.01 23.16 40.84 25.99 28.11Z" fill="#E6F1FB" />
+    </svg>
   );
 }
 
