@@ -27,7 +27,7 @@ export function CalendarCopyLink({ feedPath = '/api/calendar' }: { feedPath?: st
       <button type="button" className="btn btn-sm" onClick={copy}>
         {copied ? '✓ Link copied' : 'Copy calendar feed URL'}
       </button>
-      <a className="btn btn-sm" href={feedPath} download="internfinder.ics">
+      <a className="btn btn-sm" href={feedPath} download="internindex.ics">
         Download .ics
       </a>
     </>

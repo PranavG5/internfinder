@@ -3,7 +3,7 @@ import './globals.css';
 import { Nav } from '@/components/Nav';
 
 export const metadata: Metadata = {
-  title: 'InternFinder — find open internships, track every application',
+  title: 'InternIndex — find open internships, track every application',
   description:
     'Aggregates open internship listings from company job boards and community feeds, filters them by everything that matters to a student, and tracks your applications end to end.',
 };
@@ -20,11 +20,13 @@ export const viewport: Viewport = {
 /**
  * Applies the saved theme before first paint so a dark-mode user never sees a
  * white flash. Kept inline and tiny for exactly that reason.
+ *
+ * The legacy key is still read so the rename does not reset anyone's theme.
  */
 const themeBootstrap = `
 (function () {
   try {
-    var saved = localStorage.getItem('internfinder-theme');
+    var saved = localStorage.getItem('internindex-theme') || localStorage.getItem('internfinder-theme');
     if (saved === 'dark' || saved === 'light') {
       document.documentElement.setAttribute('data-theme', saved);
     }

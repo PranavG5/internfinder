@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
-const STORAGE_KEY = 'internfinder-theme';
+const STORAGE_KEY = 'internindex-theme';
+/** Pre-rebrand key, read once so an existing choice survives the rename. */
+const LEGACY_STORAGE_KEY = 'internfinder-theme';
 
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>('system');
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (saved === 'dark' || saved === 'light') setTheme(saved);
   }, []);
 
@@ -18,6 +20,7 @@ export function ThemeToggle() {
     setTheme(next);
     if (next === 'system') {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
       document.documentElement.removeAttribute('data-theme');
     } else {
       localStorage.setItem(STORAGE_KEY, next);

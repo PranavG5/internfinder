@@ -1,4 +1,4 @@
-# InternFinder
+# InternIndex
 
 Finds internships that are **actually open**, filters them by everything a student
 actually cares about, and tracks every application from "interested" to "accepted".

@@ -46,13 +46,13 @@ export function TrackerClient() {
 
   useEffect(() => {
     // Remember the view choice — most people settle on one and stay there.
-    const saved = localStorage.getItem('internfinder-tracker-view');
+    const saved = localStorage.getItem('internindex-tracker-view');
     if (saved === 'board' || saved === 'table') setView(saved);
   }, []);
 
   const chooseView = (next: View) => {
     setView(next);
-    localStorage.setItem('internfinder-tracker-view', next);
+    localStorage.setItem('internindex-tracker-view', next);
   };
 
   useEffect(() => {

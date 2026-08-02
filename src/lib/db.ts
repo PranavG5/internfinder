@@ -54,7 +54,7 @@ export function getPool(): Pool {
   const url = databaseUrl();
   pool = new Pool({
     connectionString: url,
-    max: Number(env('INTERNFINDER_PG_POOL') ?? 10),
+    max: Number(env('INTERNINDEX_PG_POOL') ?? 10),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 15_000,
     // Supabase requires TLS; its chain is not in the default trust store.

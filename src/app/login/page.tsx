@@ -115,7 +115,7 @@ function LoginForm() {
       </button>
 
       <p className="mt-6 text-[0.75rem]" style={{ color: 'var(--ink-muted)' }}>
-        An account is required to use InternFinder. It keeps your shortlist, fit preferences, and
+        An account is required to use InternIndex. It keeps your shortlist, fit preferences, and
         application tracker private to you.
       </p>
     </div>

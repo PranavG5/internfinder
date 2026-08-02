@@ -54,7 +54,7 @@ export function TrackDialog({
           notes: notes.trim() || null,
           referral,
           next_action: nextAction.trim() || null,
-          origin: 'internfinder',
+          origin: 'internindex',
         }),
       });
       const data = await res.json();

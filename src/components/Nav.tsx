@@ -60,7 +60,7 @@ export function Nav() {
       >
         <Link href="/" className="flex items-center gap-2">
           <Logo />
-          <span className="text-sm font-semibold">InternFinder</span>
+          <span className="text-sm font-semibold">InternIndex</span>
         </Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
@@ -87,7 +87,7 @@ export function Nav() {
           <div className="hidden items-center justify-between px-4 py-4 lg:flex">
             <Link href="/" className="flex items-center gap-2">
               <Logo />
-              <span className="text-[0.9375rem] font-semibold tracking-tight">InternFinder</span>
+              <span className="text-[0.9375rem] font-semibold tracking-tight">InternIndex</span>
             </Link>
             <ThemeToggle />
           </div>

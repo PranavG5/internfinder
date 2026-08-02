@@ -131,7 +131,7 @@ export function AddApplicationDialog({
                 onChange={(e) => set('origin', e.target.value)}
               >
                 <option value="manual">Found it myself</option>
-                <option value="internfinder">InternFinder</option>
+                <option value="internindex">InternIndex</option>
                 <option value="referral">Referral</option>
                 <option value="career-fair">Career fair</option>
                 <option value="recruiter">Recruiter reached out</option>

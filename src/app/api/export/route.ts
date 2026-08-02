@@ -45,7 +45,7 @@ export const GET = handler(async (request: Request) => {
     return new Response(toCsv(rows), {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="internfinder-applications-${stamp}.csv"`,
+        'Content-Disposition': `attachment; filename="internindex-applications-${stamp}.csv"`,
         'Cache-Control': 'no-store',
       },
     });
@@ -85,7 +85,7 @@ export const GET = handler(async (request: Request) => {
   return new Response(JSON.stringify(payload, null, 2), {
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': `attachment; filename="internfinder-backup-${stamp}.json"`,
+      'Content-Disposition': `attachment; filename="internindex-backup-${stamp}.json"`,
       'Cache-Control': 'no-store',
     },
   });

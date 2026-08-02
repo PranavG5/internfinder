@@ -4,8 +4,10 @@
  */
 
 const USER_AGENT =
-  process.env.INTERNFINDER_USER_AGENT ??
-  'InternFinder/1.0 (self-hosted internship aggregator; +https://github.com/PranavG5/internfinder)';
+  process.env.INTERNINDEX_USER_AGENT ??
+  // The repo URL stays as-is — the GitHub repository has not been renamed, and a
+  // contact URL in a User-Agent is only useful if it actually resolves.
+  'InternIndex/1.0 (self-hosted internship aggregator; +https://github.com/PranavG5/internfinder)';
 
 export class HttpError extends Error {
   constructor(
@@ -30,7 +32,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Per-host serialization + minimum gap, so we never hammer one provider. */
 const hostQueues = new Map<string, Promise<unknown>>();
-const MIN_GAP_MS = Number(process.env.INTERNFINDER_MIN_GAP_MS ?? 120);
+const MIN_GAP_MS = Number(process.env.INTERNINDEX_MIN_GAP_MS ?? 120);
 
 function withHostQueue<T>(url: string, task: () => Promise<T>): Promise<T> {
   let host = 'unknown';

@@ -33,10 +33,10 @@ export const GET = handler(async (request: Request) => {
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//InternFinder//Application Tracker//EN',
+    'PRODID:-//InternIndex//Application Tracker//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    'X-WR-CALNAME:InternFinder',
+    'X-WR-CALNAME:InternIndex',
     'X-WR-CALDESC:Internship application deadlines and interviews',
   ];
 
@@ -57,7 +57,7 @@ export const GET = handler(async (request: Request) => {
   for (const row of deadlines) {
     lines.push(
       'BEGIN:VEVENT',
-      `UID:deadline-${row.id}@internfinder`,
+      `UID:deadline-${row.id}@internindex`,
       `DTSTAMP:${icsStamp(Math.floor(Date.now() / 1000))}`,
       `DTSTART;VALUE=DATE:${icsDate(row.deadline)}`,
       `DTEND;VALUE=DATE:${icsDate(row.deadline + 86400)}`,
@@ -106,7 +106,7 @@ export const GET = handler(async (request: Request) => {
     const duration = (row.duration_min ?? 60) * 60;
     lines.push(
       'BEGIN:VEVENT',
-      `UID:interview-${row.id}@internfinder`,
+      `UID:interview-${row.id}@internindex`,
       `DTSTAMP:${icsStamp(Math.floor(Date.now() / 1000))}`,
       `DTSTART:${icsStamp(row.scheduled_at)}`,
       `DTEND:${icsStamp(row.scheduled_at + duration)}`,
@@ -142,7 +142,7 @@ export const GET = handler(async (request: Request) => {
   for (const row of tasks) {
     lines.push(
       'BEGIN:VEVENT',
-      `UID:task-${row.id}@internfinder`,
+      `UID:task-${row.id}@internindex`,
       `DTSTAMP:${icsStamp(Math.floor(Date.now() / 1000))}`,
       `DTSTART;VALUE=DATE:${icsDate(row.due_at)}`,
       `DTEND;VALUE=DATE:${icsDate(row.due_at + 86400)}`,
@@ -157,7 +157,7 @@ export const GET = handler(async (request: Request) => {
   return new Response(lines.filter(Boolean).join('\r\n'), {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': 'inline; filename="internfinder.ics"',
+      'Content-Disposition': 'inline; filename="internindex.ics"',
       'Cache-Control': 'no-store',
     },
   });
