@@ -51,9 +51,14 @@ jobs:
       - name: Sync sources into Supabase
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          # Read through the environment rather than interpolated into the
+          # script, so a dispatch input can never become shell syntax.
+          MAX_BOARDS: ${{ inputs.max_boards || '900' }}
+          VERIFY: ${{ inputs.verify || '500' }}
+          KINDS: ${{ inputs.kinds }}
         run: |
           npm run sync -- \
-            --max-boards "${{ github.event.inputs.max_boards || '900' }}" \
+            --max-boards "$MAX_BOARDS" \
             --concurrency 14 \
-            ${{ github.event.inputs.kinds && format('--kinds {0}', github.event.inputs.kinds) || '' }} \
-            --verify "${{ github.event.inputs.verify || '500' }}"
+            ${KINDS:+--kinds "$KINDS"} \
+            --verify "$VERIFY"
