@@ -29,7 +29,18 @@ function isPublic(pathname: string): boolean {
  * authenticated, so nothing but the public paths should be served.
  */
 export async function middleware(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+  const { pathname, search, searchParams } = request.nextUrl;
+
+  // A failed email link is bounced by Supabase to the project's Site URL, which
+  // is the home page — a page that requires a session, so the reason would
+  // otherwise be swallowed by the redirect to /login. Carry it to the confirm
+  // screen instead, which knows how to explain it.
+  if (searchParams.has('error_code') && !pathname.startsWith('/auth/confirm')) {
+    const confirm = new URL('/auth/confirm', request.url);
+    const description = searchParams.get('error_description') ?? searchParams.get('error');
+    if (description) confirm.searchParams.set('error_description', description);
+    return NextResponse.redirect(confirm);
+  }
 
   let response = NextResponse.next({ request });
 
