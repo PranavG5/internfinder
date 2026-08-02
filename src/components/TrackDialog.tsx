@@ -138,7 +138,7 @@ export function TrackDialog({
             />
           </Field>
 
-          <Field label="Next action" hint="e.g. tailor resume, ask Priya for a referral">
+          <Field label="Next action" hint="e.g. tailor resume, ask for a referral">
             <input
               className="input"
               value={nextAction}

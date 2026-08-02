@@ -98,7 +98,7 @@ async function main() {
     {
       company: 'Stripe', role: 'Software Engineer Intern, Payments', status: 'interviewing',
       field: 'Software Engineering', season: 'Summer', year: 2026, location: 'Seattle, WA',
-      priority: 5, appliedDaysAgo: 24, referral: true, referrer: 'Priya (alum, class of 24)',
+      priority: 5, appliedDaysAgo: 24, referral: true, referrer: 'Alum, class of 24',
       match: 'Software Engineer Intern',
       notes: 'Recruiter said the team works on the ledger service. Review idempotency + distributed txns.',
       nextAction: 'Prep system design round',
@@ -249,17 +249,17 @@ async function main() {
       scheduled_at: ahead(3) + 14 * 3600,
       duration_min: 60,
       location: 'Google Meet',
-      interviewer: 'Dana R. (staff engineer)',
+      interviewer: 'Staff engineer',
       prep_notes: 'Ledger design, idempotency keys, exactly-once semantics. Ask about on-call for interns.',
       outcome: 'pending',
     });
     await createChild('contacts', userId, {
       application_id: stripe.id,
-      name: 'Priya Raman',
+      name: 'Referring alum',
       company: 'Stripe',
       role: 'Software Engineer',
       relationship: 'alum',
-      email: 'priya@example.com',
+      email: 'alum@example.com',
       notes: 'Referred me. Send a thank-you note after the final round either way.',
     });
     await createChild('tasks', userId, {
