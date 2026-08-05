@@ -6,6 +6,15 @@ import { createSupabaseBrowser } from '@/lib/supabase/client';
 
 export const dynamic = 'force-dynamic';
 
+/*
+  `submitting` covers the auth round-trip; `redirecting` covers the navigation
+  that follows it. They are separate because the second one used to be invisible:
+  `router.push` resolves long before the destination has rendered, so clearing
+  the busy flag at the end of `submit` dropped the button back to its resting
+  state while the browser was still working.
+*/
+type Phase = 'idle' | 'submitting' | 'redirecting';
+
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -14,13 +23,15 @@ function LoginForm() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const busy = phase !== 'idle';
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
+    setPhase('submitting');
     setError(null);
     setNotice(null);
     const supabase = createSupabaseBrowser();
@@ -36,23 +47,43 @@ function LoginForm() {
         if (!data.session) {
           setNotice('Check your email for a confirmation link, then sign in.');
           setMode('signin');
+          setPhase('idle');
           return;
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
+      // Authenticated. Hold the loading state rather than clearing it — this
+      // component is about to unmount, and the wait is not over until it does.
+      setPhase('redirecting');
       router.push(next);
       router.refresh();
     } catch (err) {
       setError((err as Error).message || 'Something went wrong.');
-    } finally {
-      setBusy(false);
+      setPhase('idle');
     }
+  };
+
+  const submitLabel = () => {
+    if (phase === 'redirecting') return 'Signing you in…';
+    if (phase === 'submitting') return mode === 'signin' ? 'Checking…' : 'Creating account…';
+    return mode === 'signin' ? 'Sign in' : 'Sign up';
   };
 
   return (
     <div className="mx-auto flex min-h-[70vh] max-w-sm flex-col justify-center p-6">
+      {busy ? <div className="loading-bar" role="progressbar" aria-label="Signing in" /> : null}
+
+      {/* The spinner and bar are decorative; this is what actually gets announced. */}
+      <p aria-live="polite" className="sr-only">
+        {phase === 'submitting'
+          ? 'Checking your details, please wait.'
+          : phase === 'redirecting'
+            ? 'Signed in. Taking you to your account.'
+            : ''}
+      </p>
+
       <h1 className="text-xl font-semibold tracking-tight">
         {mode === 'signin' ? 'Sign in' : 'Create your account'}
       </h1>
@@ -71,6 +102,7 @@ function LoginForm() {
             autoComplete="email"
             className="input mt-1 w-full"
             value={email}
+            disabled={busy}
             onChange={(e) => setEmail(e.target.value)}
           />
         </label>
@@ -83,12 +115,13 @@ function LoginForm() {
             autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
             className="input mt-1 w-full"
             value={password}
+            disabled={busy}
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
 
         {error ? (
-          <p className="text-[0.8125rem]" style={{ color: 'var(--critical)' }}>
+          <p role="alert" className="text-[0.8125rem]" style={{ color: 'var(--critical)' }}>
             {error}
           </p>
         ) : null}
@@ -98,14 +131,16 @@ function LoginForm() {
           </p>
         ) : null}
 
-        <button type="submit" className="btn btn-primary w-full" disabled={busy}>
-          {busy ? 'Working…' : mode === 'signin' ? 'Sign in' : 'Sign up'}
+        <button type="submit" className="btn btn-primary w-full" disabled={busy} data-busy={busy}>
+          {busy ? <span className="spinner" aria-hidden="true" /> : null}
+          {submitLabel()}
         </button>
       </form>
 
       <button
         type="button"
         className="link mt-4 text-[0.8125rem]"
+        disabled={busy}
         onClick={() => {
           setMode(mode === 'signin' ? 'signup' : 'signin');
           setError(null);
