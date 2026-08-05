@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 /**
- * GET /api/cron/sync — the Vercel Cron entrypoint (cron invokes with GET).
+ * GET /api/cron/sync is the Vercel Cron entrypoint (cron invokes with GET).
  *
  * A deliberately bounded run so it fits a serverless time budget: the fast
  * feeds plus a small rotating slice of company boards, then the lifecycle

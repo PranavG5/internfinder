@@ -37,7 +37,7 @@ export function databaseUrl(): string {
   if (!url) {
     throw new Error(
       'No database configured. Set SUPABASE_DB_URL (or DATABASE_URL) to your Supabase ' +
-        'Postgres connection string — Dashboard → Connect → Transaction pooler. ' +
+        'Postgres connection string from Dashboard → Connect → Transaction pooler. ' +
         'Locally you can point it at any Postgres 14+ database.',
     );
   }
@@ -73,7 +73,7 @@ export function preferTransactionPooler(url: string): string {
     parsed.port = TRANSACTION_MODE_PORT;
     return parsed.toString();
   } catch {
-    // Not a URL we can parse (a libpq key/value string, say) — use it as given.
+    // Not a URL we can parse (a libpq key/value string, say), so use it as given.
     return url;
   }
 }
@@ -90,7 +90,7 @@ export function getPool(): Pool {
     connectionString: url,
     /**
      * Deliberately small. This is a per-process pool, and in serverless every
-     * concurrent instance runs its own — so the real connection count is this
+     * concurrent instance runs its own, so the real connection count is this
      * number times however many instances are warm, which is not a number the
      * app controls. A few connections each is enough to serve a page whose
      * queries run in parallel, while leaving room for instances to multiply.

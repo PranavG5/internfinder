@@ -52,7 +52,7 @@ const UNDERGRAD_ORDER = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate'
 export function computeFit(listing: FitCandidate, profile: ProfileView | null): FitResult | null {
   if (!profile) return null;
   // With nothing filled in there is nothing to compare against, and every
-  // listing would score the same neutral number — which reads as signal but
+  // listing would score the same neutral number, which reads as signal but
   // isn't. Better to show no score than a meaningless one.
   if (!hasAnySignal(profile)) return null;
 
@@ -80,7 +80,7 @@ export function computeFit(listing: FitCandidate, profile: ProfileView | null): 
         components.push({ key: 'auth', weight: 15, ratio: 0.5 });
         reasons.push({
           label: 'Sponsorship unclear',
-          detail: 'The posting does not say whether it sponsors visas — worth asking the recruiter.',
+          detail: 'The posting does not say whether it sponsors visas, so it is worth asking the recruiter.',
           weight: 15,
           polarity: 'neutral',
         });
@@ -304,7 +304,7 @@ export function computeFit(listing: FitCandidate, profile: ProfileView | null): 
   let score =
     totalWeight > 0
       ? applicable.reduce((sum, c) => sum + c.weight * (c.ratio ?? 0), 0) / totalWeight
-      : 0.5; // nothing to compare on — stay neutral
+      : 0.5; // nothing to compare on, so stay neutral
 
   // Small nudges: richer postings and urgent deadlines rise slightly.
   score = score * 0.94 + listing.quality * 0.06;
@@ -313,7 +313,7 @@ export function computeFit(listing: FitCandidate, profile: ProfileView | null): 
   if (dl != null && dl >= 0 && dl <= 7) {
     reasons.push({
       label: dl === 0 ? 'Deadline is today' : `Deadline in ${dl} day${dl === 1 ? '' : 's'}`,
-      detail: 'Apply soon — this closes shortly.',
+      detail: 'Apply soon, this closes shortly.',
       weight: 0,
       polarity: 'neutral',
     });

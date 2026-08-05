@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** PATCH /api/saved-searches/:id — rename, toggle alerts, or mark as seen. */
+/** PATCH /api/saved-searches/:id: rename, toggle alerts, or mark as seen. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

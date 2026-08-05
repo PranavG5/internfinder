@@ -10,7 +10,7 @@
 # providers, which walks the whole set roughly every day and a half.
 #
 # Requires one repository secret:
-#   SUPABASE_DB_URL — the Supabase Postgres connection string
+#   SUPABASE_DB_URL is the Supabase Postgres connection string
 #     (Supabase Dashboard → Connect → Transaction pooler, port 6543)
 
 name: Sync internship catalog

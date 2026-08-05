@@ -45,7 +45,7 @@ export function TrackerClient() {
   useEffect(load, [load]);
 
   useEffect(() => {
-    // Remember the view choice — most people settle on one and stay there.
+    // Remember the view choice, since most people settle on one and stay there.
     const saved = localStorage.getItem('internindex-tracker-view');
     if (saved === 'board' || saved === 'table') setView(saved);
   }, []);
@@ -313,11 +313,11 @@ export function TrackerClient() {
                             {formatDate(app.deadline)}
                           </span>
                         ) : (
-                          <span style={{ color: 'var(--ink-muted)' }}>—</span>
+                          <span style={{ color: 'var(--ink-muted)' }}>–</span>
                         )}
                       </td>
                       <td className="max-w-48 truncate px-3 py-2" style={{ color: 'var(--ink-secondary)' }}>
-                        {app.next_action ?? '—'}
+                        {app.next_action ?? '–'}
                       </td>
                       <td className="px-3 py-2 text-right">
                         <Link href={`/tracker/${app.id}`} className="btn btn-ghost btn-sm">

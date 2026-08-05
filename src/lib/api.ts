@@ -11,7 +11,7 @@ export async function requireUserId(): Promise<string | Response> {
   if (userId) return userId;
   return NextResponse.json(
     {
-      error: 'Sign in to save things — your profile, shortlist, and applications are stored per account.',
+      error: 'Sign in to save things. Your profile, shortlist, and applications are stored per account.',
       authRequired: true,
     },
     { status: 401, headers: { 'Cache-Control': 'no-store' } },

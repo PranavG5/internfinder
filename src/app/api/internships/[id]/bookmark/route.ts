@@ -3,7 +3,7 @@ import { toggleBookmark } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
 
-/** POST /api/internships/:id/bookmark — toggle the shortlist flag. */
+/** POST /api/internships/:id/bookmark: toggle the shortlist flag. */
 export const POST = handler(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const auth = await requireUserId();

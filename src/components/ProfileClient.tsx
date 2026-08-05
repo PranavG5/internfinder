@@ -109,7 +109,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
             className="card p-3.5 text-[0.8125rem]"
             style={{ background: 'var(--accent-soft)', borderColor: 'var(--accent)' }}
           >
-            Fill in what you can — even just work authorization, class year, and target seasons make
+            Fill in what you can. Even just work authorization, class year, and target seasons make
             the search dramatically more useful. Every field is optional and saves as you type.
           </div>
         ) : null}
@@ -153,7 +153,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
                 value={profile.degree_level ?? ''}
                 onChange={(e) => save({ degree_level: e.target.value || null })}
               >
-                <option value="">—</option>
+                <option value="">–</option>
                 {DEGREES.map((degree) => (
                   <option key={degree} value={degree}>
                     {degree}
@@ -167,7 +167,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
                 value={profile.class_year ?? ''}
                 onChange={(e) => save({ class_year: e.target.value || null })}
               >
-                <option value="">—</option>
+                <option value="">–</option>
                 {CLASS_YEARS.map((year) => (
                   <option key={year} value={year}>
                     {year}
@@ -205,7 +205,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
           <div className="card space-y-3 p-4">
             <Field
               label="Status"
-              hint="This is the single biggest filter — many internships are restricted by it."
+              hint="This is the single biggest filter, because many internships are restricted by it."
             >
               <select
                 className="select"
@@ -272,7 +272,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
 
             <Field
               label="Preferred locations"
-              hint="Comma separated — cities, states, or countries. Used for fit scoring."
+              hint="Comma separated cities, states, or countries. Used for fit scoring."
             >
               <input
                 className="input"
@@ -384,7 +384,7 @@ export function ProfileClient({ initial }: { initial: ProfileView }) {
 
             <Field
               label="Resume text"
-              hint="Paste your resume. Skills are extracted from it automatically and folded into fit scoring — it is never uploaded anywhere."
+              hint="Paste your resume. Skills are extracted from it automatically and folded into fit scoring. It is never uploaded anywhere."
             >
               <textarea
                 className="textarea"

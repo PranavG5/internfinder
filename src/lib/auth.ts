@@ -9,7 +9,7 @@ export interface AuthUser {
  * The signed-in user for the current request, or null.
  *
  * Uses `getUser()`, which validates the session against Supabase rather than
- * trusting the cookie contents — this id is what scopes every per-user query,
+ * trusting the cookie contents. This id is what scopes every per-user query,
  * so it must be verified.
  */
 export async function getAuthUser(): Promise<AuthUser | null> {

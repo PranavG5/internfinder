@@ -139,7 +139,7 @@ async function main() {
       company: 'Anduril', role: 'Embedded Software Intern', status: 'withdrawn',
       field: 'Software Engineering', season: 'Summer', year: 2026, location: 'Costa Mesa, CA',
       priority: 2, appliedDaysAgo: 30,
-      notes: 'Withdrew — requires a clearance I do not have.',
+      notes: 'Withdrew. Requires a clearance I do not have.',
     },
     {
       company: 'Ramp', role: 'Software Engineer Intern', status: 'offer',
@@ -149,13 +149,13 @@ async function main() {
     {
       company: 'Vercel', role: 'Developer Experience Intern', status: 'final_round',
       field: 'Software Engineering', season: 'Summer', year: 2026, location: 'Remote',
-      priority: 4, appliedDaysAgo: 21, nextAction: 'Final round Thursday — prep questions for the team',
+      priority: 4, appliedDaysAgo: 21, nextAction: 'Final round Thursday, prep questions for the team',
     },
     {
       company: 'Planet Labs', role: 'Aerospace Engineering Intern', status: 'interested',
       field: 'Mechanical & Aerospace', season: 'Fall', year: 2026, location: 'San Francisco, CA',
       priority: 3, deadlineInDays: 5,
-      nextAction: 'Tailor resume — deadline is close',
+      nextAction: 'Tailor resume, deadline is close',
     },
     {
       company: 'Recursion', role: 'Bioinformatics Intern', status: 'preparing',
@@ -171,7 +171,7 @@ async function main() {
       company: 'Samsara', role: 'Data Engineering Intern', status: 'accepted',
       field: 'Data & Analytics', season: 'Winter', year: 2026, location: 'Remote',
       priority: 4, appliedDaysAgo: 70,
-      notes: 'Winter co-op — accepted. Starts January.',
+      notes: 'Winter co-op, accepted. Starts January.',
     },
   ];
 

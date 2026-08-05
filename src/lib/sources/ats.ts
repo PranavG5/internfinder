@@ -133,7 +133,7 @@ export async function fetchLever(token: string, label: string): Promise<RawListi
       description: body || null,
       locations,
       remoteFlag: post.workplaceType ? /remote/i.test(post.workplaceType) : null,
-      // Lever states the employment type outright — the strongest internship signal available.
+      // Lever states the employment type outright, the strongest internship signal available.
       terms: [],
       datePosted: post.createdAt ? Math.floor(post.createdAt / 1000) : null,
       dateUpdated: post.createdAt ? Math.floor(post.createdAt / 1000) : null,

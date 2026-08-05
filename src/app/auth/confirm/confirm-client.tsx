@@ -8,7 +8,7 @@ import { createSupabaseBrowser } from '@/lib/supabase/client';
 /**
  * Finishes an email link whose session arrived in the URL fragment, which the
  * server can never see. Falls back to a readable explanation when the link is
- * expired or already used — the common case, since these tokens are one-shot
+ * expired or already used, which is the common case since these tokens are one-shot
  * and a page reload burns them.
  */
 export default function ConfirmClient({
@@ -86,7 +86,7 @@ export default function ConfirmClient({
 function humanize(raw: string): string {
   const text = raw.replace(/\+/g, ' ');
   if (/expired|invalid|not found/i.test(text)) {
-    return 'This link has already been used or has expired. Confirmation links work once — if you already clicked it, your email is confirmed and you can sign in normally.';
+    return 'This link has already been used or has expired. Confirmation links work once. If you already clicked it, your email is confirmed and you can sign in normally.';
   }
   return text;
 }

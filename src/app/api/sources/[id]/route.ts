@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** PATCH /api/sources/:id — enable or disable a source, or rename it. */
+/** PATCH /api/sources/:id: enable or disable a source, or rename it. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;
@@ -30,7 +30,7 @@ export const PATCH = handler(async (request: Request, { params }: Ctx) => {
 /**
  * DELETE /api/sources/:id
  *
- * Listings already collected from the source are kept — deleting a source stops
+ * Listings already collected from the source are kept, so deleting a source stops
  * future fetches, it does not erase history.
  */
 export const DELETE = handler(async (_request: Request, { params }: Ctx) => {

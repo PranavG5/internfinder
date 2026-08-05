@@ -176,7 +176,7 @@ export function Filters({
           step="0.01"
           min="0"
           max="4"
-          placeholder="e.g. 3.4 — hides roles asking for more"
+          placeholder="e.g. 3.4, which hides roles asking for more"
           value={query.gpa ?? ''}
           onChange={(e) => onChange({ gpa: e.target.value ? Number(e.target.value) : null })}
         />
@@ -372,7 +372,7 @@ export function Filters({
       <Group title="Exclude keywords" count={query.excludeKeywords.length}>
         <input
           className="input"
-          placeholder="e.g. sales, unpaid — comma separated"
+          placeholder="Comma separated, e.g. sales, unpaid"
           defaultValue={query.excludeKeywords.join(', ')}
           onBlur={(e) =>
             onChange({
@@ -391,7 +391,7 @@ export function Filters({
       <Group title="Archive" count={query.showClosed ? 1 : 0}>
         <Check
           label="Include closed listings"
-          hint="Off by default — the point of this app is roles you can still apply to"
+          hint="Off by default, because the point of this app is roles you can still apply to"
           checked={query.showClosed}
           onChange={(v) => onChange({ showClosed: v })}
         />

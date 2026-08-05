@@ -42,14 +42,14 @@ export default async function DashboardPage() {
       />
 
       <div className="space-y-6 p-4 sm:p-6">
-        {/* Catalog state — answers "is there anything to apply to right now?" */}
+        {/* Catalog state, which answers "is there anything to apply to right now?" */}
         <section>
           <SectionTitle
             action={
               <Link href="/sources" className="link text-[0.75rem]">
                 {catalog.lastSync
                   ? `Last synced ${relativeTime(catalog.lastSync.finished_at)}`
-                  : 'Never synced — run one'}
+                  : 'Never synced, run one'}
               </Link>
             }
           >
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
                 />
                 <StatTile
                   label="Median reply time"
-                  value={stats.medianDaysToResponse != null ? `${stats.medianDaysToResponse}d` : '—'}
+                  value={stats.medianDaysToResponse != null ? `${stats.medianDaysToResponse}d` : '–'}
                   hint="submission to first response"
                 />
               </div>
@@ -158,7 +158,7 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            {/* Action lists — the "what do I do today" half of the page. */}
+            {/* Action lists, the "what do I do today" half of the page. */}
             <section className="grid gap-4 lg:grid-cols-2">
               <Panel
                 title="Deadlines coming up"
@@ -167,7 +167,7 @@ export default async function DashboardPage() {
                   key: `dl-${app.id}`,
                   href: `/tracker/${app.id}`,
                   primary: `${app.role} · ${app.company}`,
-                  secondary: `Closes ${formatDate(app.deadline)} — ${relativeTime(app.deadline)}`,
+                  secondary: `Closes ${formatDate(app.deadline)}, ${relativeTime(app.deadline)}`,
                   badge: <StatusBadge status={app.status} small />,
                 }))}
               />
@@ -222,7 +222,7 @@ export default async function DashboardPage() {
 
               <Panel
                 title="Open tasks"
-                empty="No open tasks. Add them per application — tailor a resume, ask for a referral, send a thank-you note."
+                empty="No open tasks. Add them per application: tailor a resume, ask for a referral, send a thank-you note."
                 items={stats.openTasks.map((task) => ({
                   key: `tk-${task.id}`,
                   href: task.application_id ? `/tracker/${task.application_id}` : '/tracker',

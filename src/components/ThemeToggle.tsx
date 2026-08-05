@@ -41,7 +41,7 @@ export function ThemeToggle() {
       type="button"
       className="btn btn-ghost btn-sm"
       onClick={() => apply(next)}
-      title={`${labels[theme]} — click for ${labels[next].toLowerCase()}`}
+      title={`${labels[theme]}. Click for ${labels[next].toLowerCase()}`}
       aria-label={`${labels[theme]}. Switch to ${labels[next].toLowerCase()}.`}
     >
       {theme === 'light' ? <SunIcon /> : theme === 'dark' ? <MoonIcon /> : <AutoIcon />}

@@ -14,7 +14,7 @@ import { DAY, toHourly } from './util';
  * All tracker and profile data belongs to a signed-in user, so every function
  * here takes the Supabase auth user id and scopes each statement by it. The
  * server connects with the service credential (which bypasses RLS), so this
- * scoping is the authorization layer — never query these tables without it.
+ * scoping is the authorization layer, so never query these tables without it.
  */
 
 // ------------------------------------------------------------------- Profile

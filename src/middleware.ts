@@ -25,14 +25,14 @@ function isPublic(pathname: string): boolean {
  * land back where they were headed, and API callers get a 401 rather than a
  * redirect they cannot follow.
  *
- * Failing closed is deliberate — when Supabase is unconfigured nobody can be
+ * Failing closed is deliberate: when Supabase is unconfigured nobody can be
  * authenticated, so nothing but the public paths should be served.
  */
 export async function middleware(request: NextRequest) {
   const { pathname, search, searchParams } = request.nextUrl;
 
   // A failed email link is bounced by Supabase to the project's Site URL, which
-  // is the home page — a page that requires a session, so the reason would
+  // is the home page, a page that requires a session, so the reason would
   // otherwise be swallowed by the redirect to /login. Carry it to the confirm
   // screen instead, which knows how to explain it.
   if (searchParams.has('error_code') && !pathname.startsWith('/auth/confirm')) {

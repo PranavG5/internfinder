@@ -5,7 +5,7 @@ import { ensureSeedSources } from '@/lib/sync';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/sources — every configured source with its last sync outcome. */
+/** GET /api/sources: every configured source with its last sync outcome. */
 export const GET = handler(async () => {
   await ensureSeedSources();
 
@@ -22,7 +22,7 @@ export const GET = handler(async () => {
 });
 
 /**
- * POST /api/sources — track a new job board.
+ * POST /api/sources: track a new job board.
  *
  * Accepts either an explicit `{ kind, token }` or a `url` pasted straight from
  * a company's careers page, which is parsed into the right board.

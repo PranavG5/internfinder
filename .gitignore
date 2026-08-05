@@ -4,7 +4,7 @@ out/
 build/
 dist/
 
-# Local database and sync artifacts — this is your private data, never commit it.
+# Local database and sync artifacts. This is your private data, never commit it.
 data/
 *.db
 *.db-journal

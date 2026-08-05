@@ -22,10 +22,10 @@ const one = (v: string | string[] | undefined): string | undefined =>
  * Supabase can deliver these in three different shapes depending on the email
  * template, so all three are handled here:
  *
- *  1. `?token_hash=…&type=…` — the `{{ .TokenHash }}` template. Verified here
+ *  1. `?token_hash=…&type=…`, the `{{ .TokenHash }}` template. Verified here
  *     on the server.
- *  2. `?code=…` — the PKCE template. Exchanged for a session on the server.
- *  3. `#access_token=…&refresh_token=…` — the default `{{ .ConfirmationURL }}`
+ *  2. `?code=…`, the PKCE template. Exchanged for a session on the server.
+ *  3. `#access_token=…&refresh_token=…`, the default `{{ .ConfirmationURL }}`
  *     template, where Supabase verifies the token itself and hands back the
  *     session in the URL fragment. A fragment never reaches the server, so
  *     that case is picked up by the client component below.

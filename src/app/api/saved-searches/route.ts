@@ -45,7 +45,7 @@ export const GET = handler(async () => {
   return ok({ searches });
 });
 
-/** POST /api/saved-searches — save the current filter set. */
+/** POST /api/saved-searches: save the current filter set. */
 export const POST = handler(async (request: Request) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

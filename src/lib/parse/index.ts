@@ -8,7 +8,7 @@ import type {
   Season,
   Sponsorship,
 } from '../types';
-import { hashId, slugify, stripHtml, truncate } from '../util';
+import { hashId, slugify, stripEmDashes, stripHtml, truncate } from '../util';
 import { parseComp } from './comp';
 import { parseDeadline, parseDuration, parseStartDate } from './dates';
 import { parseEligibility } from './eligibility';
@@ -127,8 +127,8 @@ function normalizeTitle(title: string): string {
  * Returns null when the posting isn't a student internship.
  */
 export function normalize(raw: RawListing, now = Date.now()): NormalizedListing | null {
-  const title = (raw.title ?? '').replace(/\s+/g, ' ').trim();
-  const company = (raw.company ?? '').replace(/\s+/g, ' ').trim();
+  const title = stripEmDashes(raw.title ?? '').replace(/\s+/g, ' ').trim();
+  const company = stripEmDashes(raw.company ?? '').replace(/\s+/g, ' ').trim();
   if (!title || !company || !raw.applyUrl) return null;
 
   const description = stripHtml(raw.description) || null;

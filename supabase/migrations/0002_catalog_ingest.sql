@@ -4,7 +4,7 @@
 -- have HTTPS egress. `catalog_ingest` lets a trusted script bootstrap or mirror
 -- the catalog through the REST API: it upserts rows into the catalog tables
 -- (never user tables) and is guarded by a shared secret stored in app_meta
--- under 'ingest_secret' — set one before use:
+-- under 'ingest_secret'. Set one before use:
 --
 --   INSERT INTO app_meta (key, value) VALUES ('ingest_secret', '<random>')
 --     ON CONFLICT (key) DO UPDATE SET value = excluded.value;

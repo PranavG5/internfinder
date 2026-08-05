@@ -7,7 +7,7 @@ import type { Internship } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/internships/:id — one listing, with fit and tracker state. */
+/** GET /api/internships/:id: one listing, with fit and tracker state. */
 export const GET = handler(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;

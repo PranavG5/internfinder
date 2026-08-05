@@ -59,7 +59,7 @@ function LoginForm() {
       <p className="mt-1 text-[0.8125rem]" style={{ color: 'var(--ink-secondary)' }}>
         {mode === 'signin'
           ? 'Your profile, shortlist, and application tracker live in your account.'
-          : 'Free account — it keeps your profile, shortlist, and tracker synced across devices.'}
+          : 'A free account keeps your profile, shortlist, and tracker synced across devices.'}
       </p>
 
       <form onSubmit={submit} className="mt-6 space-y-3">

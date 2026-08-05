@@ -24,7 +24,7 @@ export default async function InsightsPage() {
     <div>
       <PageHeader
         title="Insights"
-        subtitle="What's actually working in your search — and where applications are stalling."
+        subtitle="What's actually working in your search, and where applications are stalling."
       />
 
       <div className="space-y-6 p-4 sm:p-6">
@@ -59,12 +59,12 @@ export default async function InsightsPage() {
                 />
                 <StatTile
                   label="Median reply time"
-                  value={stats.medianDaysToResponse != null ? `${stats.medianDaysToResponse} days` : '—'}
+                  value={stats.medianDaysToResponse != null ? `${stats.medianDaysToResponse} days` : '–'}
                 />
                 <StatTile
                   label="Rejections"
                   value={stats.rejections}
-                  hint="explicit no's — not counting silence"
+                  hint="explicit no's, not counting silence"
                 />
               </div>
             </section>
@@ -78,7 +78,7 @@ export default async function InsightsPage() {
                 </p>
                 {data.referralEffect.referralCount === 0 ? (
                   <p className="py-3 text-[0.75rem]" style={{ color: 'var(--ink-muted)' }}>
-                    No referred applications yet. Mark one as referred to see the comparison — for
+                    No referred applications yet. Mark one as referred to see the comparison. For
                     most students this is the single biggest lever.
                   </p>
                 ) : (
@@ -102,7 +102,7 @@ export default async function InsightsPage() {
                 {data.rejectionsByStage.length === 0 ? (
                   <p className="py-3 text-[0.75rem]" style={{ color: 'var(--ink-muted)' }}>
                     No rejection stages recorded. When you mark an application rejected, set the
-                    stage — knowing whether you fail at the resume screen or the final round changes
+                    stage, because knowing whether you fail at the resume screen or the final round changes
                     what you should practise.
                   </p>
                 ) : (
@@ -196,7 +196,7 @@ export default async function InsightsPage() {
                             </td>
                             <td className="tnum py-2 pr-3">${offer.hourly}/hr</td>
                             <td className="tnum py-2 pr-3">
-                              {offer.extras > 0 ? formatMoney(offer.extras) : '—'}
+                              {offer.extras > 0 ? formatMoney(offer.extras) : '–'}
                             </td>
                             <td className="tnum py-2 pr-3 font-medium">{formatMoney(offer.total)}</td>
                             <td className="tnum py-2 pr-3">{formatMoney(offer.adjustedTotal)}</td>

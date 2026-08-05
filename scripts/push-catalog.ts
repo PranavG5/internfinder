@@ -42,7 +42,7 @@ async function ingest(table: string, rows: Record<string, unknown>[]): Promise<n
       body: JSON.stringify({ p_secret: SECRET, p_table: table, p_rows: chunk }),
     });
     if (!res.ok) {
-      throw new Error(`${table} chunk ${i / CHUNK}: HTTP ${res.status} — ${await res.text()}`);
+      throw new Error(`${table} chunk ${i / CHUNK}: HTTP ${res.status}: ${await res.text()}`);
     }
     pushed += chunk.length;
     process.stdout.write(`\r  ${table}: ${pushed}/${rows.length}`);

@@ -32,7 +32,7 @@ export function PageHeader({
 }
 
 /**
- * A single headline number. No plot — per the dataviz guidance, a lone metric
+ * A single headline number. No plot, because per the dataviz guidance a lone metric
  * reads better as a figure than as a one-bar chart.
  */
 export function StatTile({
@@ -77,7 +77,7 @@ export function StatTile({
   );
 }
 
-/** Status pill. Colour plus the written label — never colour alone. */
+/** Status pill. Colour plus the written label, never colour alone. */
 export function StatusBadge({ status, small }: { status: AppStatus; small?: boolean }) {
   const meta = STATUS_META[status] ?? STATUS_META.interested;
   const palette: Record<string, { bg: string; fg: string }> = {

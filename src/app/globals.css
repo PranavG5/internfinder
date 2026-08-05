@@ -2,7 +2,7 @@
 
 /*
   Design tokens.
-  Light and dark are each selected deliberately — dark is not an inverted flip.
+  Light and dark are each selected deliberately. Dark is not an inverted flip.
   Every dark value is declared under both `prefers-color-scheme` (the OS setting)
   and `[data-theme]` (the in-app toggle), so the toggle wins in both directions.
 */
@@ -40,7 +40,7 @@
   --ord-4: #1c5cab;
   --ord-5: #104281;
 
-  /* Status — fixed, never themed. Always paired with an icon and a label. */
+  /* Status colours are fixed, never themed. Always paired with an icon and a label. */
   --good: #0ca30c;
   --good-text: #006300;
   --warning: #fab219;

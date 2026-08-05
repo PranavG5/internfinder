@@ -11,7 +11,7 @@ function validTable(raw: string): ChildTable | null {
 
 type Ctx = { params: Promise<{ table: string }> };
 
-/** GET /api/children/:table?application_id=1 — interviews, contacts, offers, or tasks. */
+/** GET /api/children/:table?application_id=1: interviews, contacts, offers, or tasks. */
 export const GET = handler(async (request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

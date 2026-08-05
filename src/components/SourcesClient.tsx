@@ -93,13 +93,13 @@ export function SourcesClient() {
 
       if (body.verifyOnly && v) {
         setSyncMessage(
-          `Checked ${v.checked} links — ${v.alive} still open, ${v.closed} closed and removed from search` +
+          `Checked ${v.checked} links: ${v.alive} still open, ${v.closed} closed and removed from search` +
             (v.errors ? `, ${v.errors} unreachable (left untouched).` : '.'),
         );
       } else {
         const failed = r.sources.filter((s: { ok: boolean }) => !s.ok).length;
         setSyncMessage(
-          `Done in ${(r.durationMs / 1000).toFixed(0)}s — ${r.inserted} new, ${r.updated} refreshed, ` +
+          `Done in ${(r.durationMs / 1000).toFixed(0)}s: ${r.inserted} new, ${r.updated} refreshed, ` +
             `${r.closed} closed, ${r.duplicates} duplicates merged` +
             (r.discovered ? `, ${r.discovered} new boards discovered` : '') +
             (failed ? `. ${failed} source${failed === 1 ? '' : 's'} failed.` : '.'),
@@ -201,7 +201,7 @@ export function SourcesClient() {
           </div>
         ) : null}
 
-        {/* How openness is guaranteed — worth stating plainly. */}
+        {/* How openness is guaranteed, which is worth stating plainly. */}
         <section className="card p-4">
           <h2 className="text-[0.8125rem] font-semibold">How &ldquo;only open roles&rdquo; works</h2>
           <ul
@@ -260,8 +260,8 @@ export function SourcesClient() {
           <SectionTitle>Add a company&rsquo;s job board</SectionTitle>
           <form className="card space-y-2 p-4" onSubmit={addSource}>
             <p className="text-[0.8125rem]" style={{ color: 'var(--ink-secondary)' }}>
-              Paste a posting URL from any supported provider — Workday, Greenhouse, Oracle Cloud
-              Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and more — and the board
+              Paste a posting URL from any supported provider (Workday, Greenhouse, Oracle Cloud
+              Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and more) and the board
               behind it gets tracked from then on.
             </p>
             <div className="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ export function SourcesClient() {
                         <td className="px-3 py-2" style={{ color: 'var(--ink-secondary)' }}>
                           {KIND_LABELS[source.kind] ?? source.kind}
                         </td>
-                        <td className="tnum px-3 py-2">{source.open_count || '—'}</td>
+                        <td className="tnum px-3 py-2">{source.open_count || '–'}</td>
                         <td className="px-3 py-2 whitespace-nowrap" style={{ color: 'var(--ink-secondary)' }}>
                           {source.last_sync_at ? relativeTime(source.last_sync_at) : 'never'}
                           {source.last_count != null ? (
@@ -439,7 +439,7 @@ export function SourcesClient() {
                         <td className="tnum px-3 py-2">{run.inserted.toLocaleString()}</td>
                         <td className="tnum px-3 py-2">{run.closed.toLocaleString()}</td>
                         <td className="tnum px-3 py-2">
-                          {run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : '—'}
+                          {run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : '–'}
                         </td>
                         <td className="px-3 py-2">
                           {run.ok ? (

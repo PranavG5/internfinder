@@ -5,7 +5,7 @@ import { fetchText, getJson } from './http';
  * Adapters for employers big enough to run their own careers API.
  *
  * These do not sit on any shared ATS, so nothing else in the pipeline can reach
- * them — and they are exactly the companies people look for first. Each one is
+ * them, and they are exactly the companies people look for first. Each one is
  * a single source rather than a per-company board.
  */
 

@@ -3,7 +3,7 @@ import { hideListing, unhideListing } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
 
-/** POST /api/internships/:id/hide — dismiss a listing so it stops appearing. */
+/** POST /api/internships/:id/hide: dismiss a listing so it stops appearing. */
 export const POST = handler(
   async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const auth = await requireUserId();
@@ -16,7 +16,7 @@ export const POST = handler(
   },
 );
 
-/** DELETE /api/internships/:id/hide — undo a dismissal. */
+/** DELETE /api/internships/:id/hide: undo a dismissal. */
 export const DELETE = handler(
   async (_request: Request, { params }: { params: Promise<{ id: string }> }) => {
     const auth = await requireUserId();

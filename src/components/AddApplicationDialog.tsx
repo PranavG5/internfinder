@@ -6,7 +6,7 @@ import { fromDateInput } from '@/lib/util';
 import { Field } from './ui';
 
 /**
- * Manual entry, for roles found outside this app — a career fair, a referral, a
+ * Manual entry, for roles found outside this app: a career fair, a referral, a
  * professor's email. Only company and role are required; everything else is
  * optional so adding something takes seconds.
  */
@@ -154,7 +154,7 @@ export function AddApplicationDialog({
                 value={form.field}
                 onChange={(e) => set('field', e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">–</option>
                 {FIELDS.map((field) => (
                   <option key={field} value={field}>
                     {field}
@@ -168,7 +168,7 @@ export function AddApplicationDialog({
                 value={form.season}
                 onChange={(e) => set('season', e.target.value)}
               >
-                <option value="">—</option>
+                <option value="">–</option>
                 {SEASONS.filter((s) => s !== 'Unknown').map((season) => (
                   <option key={season} value={season}>
                     {season}

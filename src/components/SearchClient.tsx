@@ -71,7 +71,7 @@ export function SearchClient() {
     Promise.all([
       fetch(`/api/internships?${qs}`, { signal: controller.signal }).then(async (r) => {
         if (r.ok) return r.json();
-        // Surface what the server actually said — a bare status code sends you
+        // Surface what the server actually said, because a bare status code sends you
         // digging through logs for something the response already told you.
         const detail = await r
           .json()
@@ -108,7 +108,7 @@ export function SearchClient() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // "/" focuses search, Escape blurs it — standard for a search-first app.
+  // "/" focuses search and Escape blurs it, which is standard for a search-first app.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;

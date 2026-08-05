@@ -107,7 +107,7 @@ export function SavedClient() {
                 </Link>
               }
             >
-              Set up filters on the search page — season, field, location, pay, eligibility — then hit{' '}
+              Set up filters on the search page for season, field, location, pay and eligibility, then hit{' '}
               <strong>Save this search</strong>. Come back here to see how many new postings have
               appeared since you last checked.
             </EmptyState>

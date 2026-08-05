@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 // A full sweep across every job board takes a while; allow for it.
 export const maxDuration = 300;
 
-/** GET /api/sync — recent runs and catalog totals. */
+/** GET /api/sync: recent runs and catalog totals. */
 export const GET = handler(async () => {
   const [runs, stats] = await Promise.all([
     q('SELECT * FROM sync_runs ORDER BY id DESC LIMIT 10'),
@@ -24,7 +24,7 @@ function isCronRequest(request: Request): boolean {
 }
 
 /**
- * POST /api/sync — refresh the catalog.
+ * POST /api/sync: refresh the catalog.
  *
  * Callable by any signed-in user, or by a scheduler carrying CRON_SECRET.
  *
@@ -48,7 +48,7 @@ export const POST = handler(async (request: Request) => {
   const verifyRaw = Number(body.verify);
   const verifyCount = Number.isFinite(verifyRaw) ? Math.max(0, Math.min(500, verifyRaw)) : 0;
 
-  // Link verification is useful on its own — it's the strongest openness check
+  // Link verification is useful on its own, since it is the strongest openness check
   // and doesn't need a fetch pass first. The lifecycle sweep rides along so
   // passed deadlines drop off even without a full sync.
   if (body.verifyOnly === true) {

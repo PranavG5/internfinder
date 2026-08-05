@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic';
  * Accepts either a JSON backup produced by `/api/export`, or a CSV of
  * applications (from a spreadsheet, Notion, or another tracker).
  *
- * Import is additive and skips rows that already exist — company + role is
- * treated as the identity — so re-importing the same file is safe.
+ * Import is additive and skips rows that already exist, treating company plus
+ * role as the identity, so re-importing the same file is safe.
  */
 export const POST = handler(async (request: Request) => {
   const auth = await requireUserId();

@@ -35,7 +35,7 @@ const COUNTRY_ALIASES: Record<string, string> = {
   'united states': 'United States', 'united states of america': 'United States',
   uk: 'United Kingdom', 'u.k.': 'United Kingdom', 'united kingdom': 'United Kingdom',
   england: 'United Kingdom', scotland: 'United Kingdom', wales: 'United Kingdom',
-  // Note: the bare code "CA" is deliberately absent — in "Palo Alto, CA" it
+  // Note: the bare code "CA" is deliberately absent, because in "Palo Alto, CA" it
   // means California, and US city/state pairs vastly outnumber country codes here.
   canada: 'Canada',
   india: 'India', germany: 'Germany', deutschland: 'Germany', france: 'France',
@@ -80,7 +80,7 @@ const ISO3_COUNTRIES: Record<string, string> = {
  * Well-known cities, so a location that names only a city still answers the
  * country and region filters.
  *
- * Most boards write "London" or "Amsterdam" or "SF" and stop there — before
+ * Most boards write "London" or "Amsterdam" or "SF" and stop there. Before
  * this, none of those rows could be found by country at all, which was the
  * single largest gap in the location filters. Entries are limited to cities
  * whose name is unambiguous at world scale; ambiguous ones (Cambridge,
@@ -260,7 +260,7 @@ export function parseLocations(
   }
 
   // Descriptions can upgrade "unknown" but shouldn't override an explicit
-  // location field — a posting listing "New York, NY" that mentions remote
+  // location field, since a posting listing "New York, NY" that mentions remote
   // work culture is still an onsite role.
   if (locationType === 'unknown') {
     if (HYBRID_RE.test(hint)) locationType = 'hybrid';
@@ -321,8 +321,8 @@ function normalizeOne(input: string): string | null {
 /**
  * Break a location string into its parts.
  *
- * Commas are the usual separator, but Workday — the largest source by a wide
- * margin — writes hierarchies with hyphens instead: "United States-Florida-
+ * Commas are the usual separator, but Workday, the largest source by a wide
+ * margin, writes hierarchies with hyphens instead: "United States-Florida-
  * Melbourne", "USA - CA - Santa Clara", "CA---San-Jose---3850-N-First-St".
  * Splitting on every hyphen would wreck ordinary names like "Winston-Salem",
  * so a bare hyphen only separates when doing so yields a recognizable place.
@@ -333,7 +333,7 @@ function segmentsOf(input: string): string[] {
   if (input.includes(',')) return tidy(input.split(','));
 
   // A doubled hyphen separates, and inside those segments a single hyphen is
-  // a space — that whole format comes from Workday slugifying an address.
+  // a space, since that whole format comes from Workday slugifying an address.
   const doubled = tidy(input.split(/-{2,}/));
   if (doubled.length > 1) {
     return dropStreetAddress(doubled.map((s) => s.replace(/-/g, ' ').trim()));
@@ -366,7 +366,7 @@ function dropStreetAddress(segments: string[]): string[] {
  * Workday and several other enterprise sources order locations broadest-first
  * ("US, CA, Santa Clara"); the rest of the pipeline, and everything a reader
  * expects, is city-first. Only flip when the string clearly starts with a
- * country or state and doesn't already end with one — otherwise "Mexico, MO"
+ * country or state and doesn't already end with one. Otherwise "Mexico, MO"
  * (the town in Missouri) would be reversed into a listing in Mexico.
  */
 function orderCityFirst(segments: string[]): string[] {
@@ -395,7 +395,7 @@ function splitLocation(loc: string): { city: string | null; region: string | nul
 
   const last = parts[parts.length - 1];
 
-  // "Vancouver, BC, CA" — a province code earlier in the string means the
+  // "Vancouver, BC, CA": a province code earlier in the string means the
   // trailing "CA" is Canada, not California.
   if (last === 'CA' && parts.some((p) => CA_PROVINCES.has(p.toUpperCase()))) {
     return {
@@ -405,7 +405,7 @@ function splitLocation(loc: string): { city: string | null; region: string | nul
     };
   }
 
-  // "City, ST" — a US state code in the final slot implies the United States.
+  // "City, ST": a US state code in the final slot implies the United States.
   if (STATE_CODES.has(last)) {
     return {
       city: parts.length > 1 ? parts[0] : null,
@@ -424,7 +424,7 @@ function splitLocation(loc: string): { city: string | null; region: string | nul
   }
 
   // Nothing in the string names a country, so fall back to recognizing the
-  // city itself — "London" and "Amsterdam" are locations, not mysteries.
+  // city itself, because "London" and "Amsterdam" are locations, not mysteries.
   const known = CITY_PLACES[parts[0].toLowerCase()];
   if (known) {
     const [country, region] = known;

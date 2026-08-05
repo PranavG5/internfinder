@@ -5,7 +5,7 @@ import { getProfile } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/internships — faceted search over open internships. */
+/** GET /api/internships: faceted search over open internships. */
 export const GET = handler(async (request: Request) => {
   const url = new URL(request.url);
   const query = parseSearchParams(url.searchParams);

@@ -10,7 +10,7 @@ export const GET = handler(async () => {
   return ok({ profile: await getProfile(auth) });
 });
 
-/** PATCH /api/profile — drives fit scoring, eligibility filters, and defaults. */
+/** PATCH /api/profile: drives fit scoring, eligibility filters, and defaults. */
 export const PATCH = handler(async (request: Request) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

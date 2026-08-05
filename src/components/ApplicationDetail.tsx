@@ -352,7 +352,7 @@ export function ApplicationDetail({
                     defaultValue={app.rejected_stage ?? ''}
                     onChange={(e) => patch({ rejected_stage: e.target.value })}
                   >
-                    <option value="">—</option>
+                    <option value="">–</option>
                     <option value="resume screen">Resume screen</option>
                     <option value="online assessment">Online assessment</option>
                     <option value="phone screen">Phone screen</option>
@@ -597,7 +597,7 @@ function InterviewList({
     <div className="card p-4">
       {interviews.length === 0 && !open ? (
         <p className="mb-3 text-[0.75rem]" style={{ color: 'var(--ink-muted)' }}>
-          No interviews yet. Add one when you get the invite — it shows up on your calendar and in
+          No interviews yet. Add one when you get the invite and it shows up on your calendar and in
           the ICS feed.
         </p>
       ) : null}

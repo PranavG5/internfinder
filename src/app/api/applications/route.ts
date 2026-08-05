@@ -5,7 +5,7 @@ import type { Internship } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/applications — the tracker list. */
+/** GET /api/applications: the tracker list. */
 export const GET = handler(async (request: Request) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;
@@ -21,7 +21,7 @@ export const GET = handler(async (request: Request) => {
 });
 
 /**
- * POST /api/applications — add an application.
+ * POST /api/applications: add an application.
  *
  * Passing `internship_id` copies the company, role, location, and deadline
  * straight off the catalog entry, so tracking a role you found in search takes

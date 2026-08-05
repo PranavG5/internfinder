@@ -6,7 +6,7 @@ import { getProfile } from '@/lib/repo';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/internships/facets — counts for every filter value.
+ * GET /api/internships/facets: counts for every filter value.
  * Each facet ignores its own filter so the numbers answer "what if I picked
  * this instead of my current choice".
  */

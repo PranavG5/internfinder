@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 
 /**
  * Supabase client bound to the current request's cookies, for server
- * components and route handlers. Auth only — data access goes through the
+ * components and route handlers. Auth only, since data access goes through the
  * direct Postgres connection in `db.ts`.
  */
 export async function createSupabaseServer() {

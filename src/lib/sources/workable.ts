@@ -4,7 +4,7 @@ import { getJson } from './http';
 /**
  * Workable adapter. The public widget API serves every published job on a
  * company's `apply.workable.com` board, including full HTML descriptions when
- * `details=true` — same openness guarantee as the other ATS adapters: a role is
+ * `details=true`, giving the same openness guarantee as the other ATS adapters: a role is
  * present only while it accepts applications.
  */
 

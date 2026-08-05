@@ -5,7 +5,7 @@ import { dashboardStats } from '@/lib/repo';
 
 export const dynamic = 'force-dynamic';
 
-/** GET /api/stats — everything the dashboard needs in one call. */
+/** GET /api/stats: everything the dashboard needs in one call. */
 export const GET = handler(async () => {
   const user = await getAuthUser();
   const [dashboard, catalog] = await Promise.all([

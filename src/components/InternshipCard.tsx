@@ -6,8 +6,8 @@ import { formatDate, formatPay, relativeTime, truncate } from '@/lib/util';
 import { DeadlineBadge, ExternalIcon, FitBadge, StatusBadge } from './ui';
 
 /**
- * One search result. Shows the facts a student decides on at a glance — term,
- * location, pay, eligibility, deadline — and keeps the two actions that matter
+ * One search result. Shows the facts a student decides on at a glance (term,
+ * location, pay, eligibility, deadline) and keeps the two actions that matter
  * (apply, track) one click away.
  */
 export function InternshipCard({
@@ -146,7 +146,7 @@ export function InternshipCard({
                     </span>
                     <span>
                       <strong style={{ fontWeight: 500 }}>{reason.label}</strong>
-                      {' — '}
+                      {': '}
                       <span style={{ color: 'var(--ink-secondary)' }}>{reason.detail}</span>
                     </span>
                   </li>

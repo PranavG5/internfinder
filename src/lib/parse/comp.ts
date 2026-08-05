@@ -62,7 +62,7 @@ function periodFromMagnitude(amount: number, currency: string): CompResult['peri
  *
  * Handles the common shapes:
  *   "$45.00 - $60.00 per hour"      "£28,000 per annum"
- *   "$8,000/month"                   "Pay Range: $30/hr — $45/hr"
+ *   "$8,000/month"                   "Pay Range: $30/hr to $45/hr"
  *   "USD 100,000 - 130,000 annually" "45-60 USD/hour"
  */
 export function parseComp(text: string | null | undefined, titleHint = ''): CompResult {
@@ -81,7 +81,7 @@ export function parseComp(text: string | null | undefined, titleHint = ''): Comp
     return { ...empty, isPaid: 0, text: body.match(UNPAID)?.[0] ?? null };
   }
 
-  // Prefer text near an explicit compensation heading — job posts often quote
+  // Prefer text near an explicit compensation heading, since job posts often quote
   // unrelated dollar figures ("$2B in revenue", "raised $50M").
   const focused = focusOnCompSection(body);
 
@@ -123,7 +123,7 @@ const NON_MONEY_UNIT =
 /**
  * Sanity floors for a figure with no currency symbol or code next to it.
  *
- * A marked amount is taken at face value — "€38,900.00 EUR Annually" is
+ * A marked amount is taken at face value, so "€38,900.00 EUR Annually" is
  * unambiguous. An unmarked one has to at least be the right size for the period
  * it claims, which is what separates real pay from a stray number.
  */

@@ -31,7 +31,7 @@ async function main() {
   console.log(`  Checked      : ${result.checked}`);
   console.log(`  Still open   : ${result.alive}`);
   console.log(`  Closed       : ${result.closed}`);
-  console.log(`  Unreachable  : ${result.errors} (left alone — a network blip is not a closure)`);
+  console.log(`  Unreachable  : ${result.errors} (left alone, since a network blip is not a closure)`);
 
   await closePool();
 }

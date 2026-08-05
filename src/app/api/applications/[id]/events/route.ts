@@ -16,7 +16,7 @@ export const GET = handler(async (_request: Request, { params }: Ctx) => {
   return ok({ events: await listEvents(auth, id) });
 });
 
-/** POST /api/applications/:id/events — log a note, email, call, or milestone. */
+/** POST /api/applications/:id/events: log a note, email, call, or milestone. */
 export const POST = handler(async (request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

@@ -60,7 +60,7 @@ export function TrackDialog({
       const data = await res.json();
 
       if (!res.ok) {
-        // Already tracking it — send the user to the existing entry instead of
+        // Already tracking it, so send the user to the existing entry instead of
         // silently creating a duplicate.
         if (data.duplicate && data.application_id) {
           onSaved(data.application_id, status);
@@ -108,7 +108,7 @@ export function TrackDialog({
             </select>
           </Field>
 
-          <Field label="Priority" hint="5 means dream role — used to sort your tracker">
+          <Field label="Priority" hint="5 means dream role. Used to sort your tracker">
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((value) => (
                 <button

@@ -5,7 +5,7 @@ import { one, q } from '@/lib/db';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/calendar?token=… — an iCalendar feed of deadlines and interviews.
+ * GET /api/calendar?token=… returns an iCalendar feed of deadlines and interviews.
  *
  * Subscribe to this URL from Google Calendar, Apple Calendar, or Outlook and
  * every deadline you're tracking shows up alongside your classes. Calendar

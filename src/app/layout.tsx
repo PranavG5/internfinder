@@ -3,7 +3,7 @@ import './globals.css';
 import { Nav } from '@/components/Nav';
 
 export const metadata: Metadata = {
-  title: 'InternIndex — find open internships, track every application',
+  title: 'InternIndex: find open internships, track every application',
   description:
     'Aggregates open internship listings from company job boards and community feeds, filters them by everything that matters to a student, and tracks your applications end to end.',
   icons: {

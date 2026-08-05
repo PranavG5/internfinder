@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 type Ctx = { params: Promise<{ id: string }> };
 
-/** GET /api/applications/:id — the application plus its timeline and children. */
+/** GET /api/applications/:id: the application plus its timeline and children. */
 export const GET = handler(async (_request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;
@@ -33,7 +33,7 @@ export const GET = handler(async (_request: Request, { params }: Ctx) => {
   return ok({ application, events, interviews, contacts, offers, tasks });
 });
 
-/** PATCH /api/applications/:id — update fields; status changes are logged. */
+/** PATCH /api/applications/:id: update fields. Status changes are logged. */
 export const PATCH = handler(async (request: Request, { params }: Ctx) => {
   const auth = await requireUserId();
   if (auth instanceof Response) return auth;

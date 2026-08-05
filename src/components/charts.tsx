@@ -59,7 +59,7 @@ export interface BarDatum {
 }
 
 /**
- * Horizontal bars — the right form when category labels are words rather than
+ * Horizontal bars, the right form when category labels are words rather than
  * dates, because the labels get real horizontal room.
  */
 export function HBarChart({
@@ -236,8 +236,8 @@ export function Funnel({ stages }: { stages: { stage: string; count: number }[] 
 }
 
 /**
- * Applications submitted per week. A single series over time, so no legend —
- * the title names it. A dashed reference line marks the weekly goal.
+ * Applications submitted per week. A single series over time needs no legend,
+ * because the title names it. A dashed reference line marks the weekly goal.
  */
 export function WeeklyColumns({
   data,
