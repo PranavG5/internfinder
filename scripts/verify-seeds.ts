@@ -13,6 +13,7 @@ import { fetchWorkable } from '../src/lib/sources/workable';
 import { fetchBamboo, fetchBreezy, fetchPersonio, fetchRippling } from '../src/lib/sources/bigtech';
 import { fetchEightfold } from '../src/lib/sources/eightfold';
 import { fetchOracle } from '../src/lib/sources/oracle';
+import { fetchPhenom } from '../src/lib/sources/phenom';
 import { fetchWorkday } from '../src/lib/sources/workday';
 import { mapPool } from '../src/lib/sources/http';
 
@@ -32,6 +33,8 @@ async function fetchCount(kind: string, token: string, label: string): Promise<n
       return (await fetchWorkday(token, label)).length;
     case 'oracle':
       return (await fetchOracle(token, label)).length;
+    case 'phenom':
+      return (await fetchPhenom(token, label)).length;
     case 'eightfold':
       return (await fetchEightfold(token, label)).length;
     case 'rippling':
@@ -56,7 +59,7 @@ async function main() {
     try {
       const count = await fetchCount(board.kind, board.token, board.label);
       if (count === 0) {
-        // The adapters tolerate 404s by returning [] — an empty result usually
+        // The adapters tolerate 404s by returning [], so an empty result usually
         // means the token is wrong or the company left this ATS.
         empty.push(`${board.kind}:${board.token}`);
         console.log(`  EMPTY ${board.kind}:${board.token}`);
@@ -66,7 +69,7 @@ async function main() {
       }
     } catch (err) {
       dead.push(`${board.kind}:${board.token}`);
-      console.log(`  DEAD  ${board.kind}:${board.token} — ${(err as Error).message}`);
+      console.log(`  DEAD  ${board.kind}:${board.token}: ${(err as Error).message}`);
     }
   });
 

@@ -4,14 +4,14 @@ import { getJson } from './http';
 /**
  * Oracle Cloud Recruiting ("ORC") adapter.
  *
- * The second-largest ATS in the archive after Workday — Honeywell, 3M, Deloitte
+ * The second-largest ATS in the archive after Workday. Honeywell, 3M, Deloitte
  * and ~110 other large employers post here. Career sites look like
  *
  *   https://{pod}.fa.{region}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{site}/job/{id}
  *
  * and are backed by an open REST resource on the same host. Unlike Workday the
  * page size is generous (200), so the whole requisition list is read directly
- * rather than fought through a fuzzy keyword search — Oracle's `keyword` filter
+ * rather than fought through a fuzzy keyword search, because Oracle's `keyword` filter
  * matches description text and is no more precise than reading everything.
  */
 
@@ -69,8 +69,14 @@ const isoSecs = (iso: string | null | undefined): number | null => {
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 };
 
+/**
+ * Titles worth spending a description request on. The healthcare wording
+ * matters here: the largest Oracle tenants in the catalog are health systems,
+ * and they post student roles as externships, scribe jobs and research
+ * assistantships rather than as internships.
+ */
 const INTERNISH_TITLE =
-  /\bintern(?:ship|ships|s)?\b|\bco-?ops?\b|\bapprentice|\bplacement\b|\bworking\s+student\b|\bwerkstudent|\bpraktik|\bstudent\b|\bsummer\s+(?:analyst|associate|scholar|program)\b|\bgraduate\s+program\b|\bcampus\b/i;
+  /\bintern(?:ship|ships|s)?\b|\bco-?ops?\b|\bapprentice|\bplacement\b|\bworking\s+student\b|\bwerkstudent|\bpraktik|\bstudent\b|\bsummer\s+(?:analyst|associate|scholar|program|research)\b|\bgraduate\s+program\b|\bcampus\b|\bextern(?:ship)?\b|\bfellow(?:ship)?\b|\bscribe\b|\bpracticum\b|\bpost-?bac|\bpre-?(?:med|health)\b|\bresearch\s+(?:assistant|aide|trainee|scholar)\b|\b(?:lab|laboratory)\s+(?:assistant|aide)\b/i;
 
 function listUrl(board: OracleBoard, offset: number): string {
   const finder = `findReqs;siteNumber=${board.site},limit=${PAGE},offset=${offset},sortBy=POSTING_DATES_DESC`;

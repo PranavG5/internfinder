@@ -2,7 +2,7 @@
  * Seed list of applicant-tracking-system job boards.
  *
  * Every token here was verified to return a live board (see
- * scripts/verify-seeds.ts). The list only bootstraps the catalog —
+ * scripts/verify-seeds.ts). The list only bootstraps the catalog, because
  * `discoverBoards()` grows it automatically by reading the apply URLs that come
  * back from the aggregator feeds, so the app learns about new employers without
  * anyone editing this file.
@@ -11,6 +11,7 @@
 import type { BoardKind } from '../types';
 import { encodeEightfoldToken, eightfoldBoardFromUrl } from './eightfold';
 import { encodeOracleToken, oracleBoardFromUrl } from './oracle';
+import { phenomHostFromUrl } from './phenom';
 import { encodeWorkdayToken, workdayBoardFromUrl } from './workday';
 
 // The kind vocabulary lives with the shared types so client components can
@@ -43,6 +44,14 @@ const GREENHOUSE = [
   'gofundme', 'lucidmotors', 'pandadoc', 'stubhubinc', 'tanium', 'tripadvisor',
   'cockroachlabs', 'chanzuckerberginitiative', 'zocdoc', 'crunchyroll', 'roku',
   'tripactions', 'rocketlab', 'toast', 'liftoff',
+  // Healthcare, biotech and health tech. Premed and life-science students had
+  // almost nothing to search before these.
+  'calicolabs', 'flatironhealth', '10xgenomics', 'altoslabs', 'arcinstitute',
+  'freenome', 'caribou', 'beamtherapeutics', 'primemedicine', 'pathai',
+  'omadahealth', 'swordhealth', 'mavenclinic', 'doximity', 'parsleyhealth',
+  'talkspace', 'curative', 'honor', 'elationhealth', 'oshihealth',
+  'charliehealth', 'trustedhealth', 'cloverhealth', 'iterativehealth',
+  'akidolabs', 'welbehealth', 'resilience',
 ] as const;
 
 const LEVER = [
@@ -50,6 +59,8 @@ const LEVER = [
   // Expansion wave.
   'kraken123', 'highspot', 'outreach', 'entrata', 'matchgroup', 'mashgin',
   'plaid', 'saronic',
+  // Health tech.
+  'nomihealth',
 ] as const;
 
 const ASHBY = [
@@ -62,6 +73,9 @@ const ASHBY = [
   'astronomer', 'multiverse', 'eightsleep', 'decagon', 'sardine', 'browserbase',
   'character', 'kalshi', 'polymarket', 'anrok', 'mercor', 'skydio', 'runway',
   'gecko-robotics', 'Deel',
+  // Clinical AI and digital health.
+  'openevidence', 'nabla', 'counsel', 'superpower', 'tennr', 'anterior',
+  'clarium', 'rula', 'slingshotai', 'neko-health', 'cradlebio',
 ] as const;
 
 const SMARTRECRUITERS = [
@@ -212,6 +226,59 @@ const WORKDAY: [token: string, label: string][] = [
   ['uchicago.wd5.myworkdayjobs.com/uchicago/External', 'University of Chicago'],
   ['vanguard.wd5.myworkdayjobs.com/vanguard/contractors_restricted', 'Vanguard'],
   ['onehealthineers.wd3.myworkdayjobs.com/onehealthineers/SHSJB', 'Varian'],
+  // Hospitals and academic medical centers. Health systems are where clinical
+  // internships, nurse externships and hospital research assistantships are
+  // posted, and none of them were reachable from the catalog before.
+  ['ccf.wd1.myworkdayjobs.com/ccf/ClevelandClinicCareers', 'Cleveland Clinic'],
+  ['msk.wd108.myworkdayjobs.com/msk/MSKCC_Careers_Primary', 'Memorial Sloan Kettering Cancer Center'],
+  ['danafarber.wd5.myworkdayjobs.com/danafarber/dana-farber', 'Dana-Farber Cancer Institute'],
+  ['stanfordmedicine.wd115.myworkdayjobs.com/stanfordmedicine/SHC_External_Career_Site', 'Stanford Health Care'],
+  ['nyp.wd1.myworkdayjobs.com/nyp/nypcareers', 'NewYork-Presbyterian'],
+  ['jeffersonhealth.wd5.myworkdayjobs.com/jeffersonhealth/ThomasJeffersonExternal', 'Jefferson Health'],
+  ['geisinger.wd5.myworkdayjobs.com/geisinger/GeisingerExternal', 'Geisinger'],
+  ['sentara.wd1.myworkdayjobs.com/sentara/SCS', 'Sentara Health'],
+  ['imh.wd108.myworkdayjobs.com/imh/IntermountainCareers', 'Intermountain Health'],
+  ['bannerhealth.wd108.myworkdayjobs.com/bannerhealth/Careers', 'Banner Health'],
+  ['bannerhealth.wd108.myworkdayjobs.com/bannerhealth/sonoraquestcareers', 'Sonora Quest Laboratories'],
+  ['sharp.wd1.myworkdayjobs.com/sharp/External', 'Sharp HealthCare'],
+  ['adventhealth.wd12.myworkdayjobs.com/adventhealth/AH_External_Career_Site', 'AdventHealth'],
+  ['ochsner.wd1.myworkdayjobs.com/ochsner/Ochsner', 'Ochsner Health'],
+  ['musc.wd1.myworkdayjobs.com/musc/MUSC', 'Medical University of South Carolina'],
+  ['vumc.wd1.myworkdayjobs.com/vumc/vumccareers', 'Vanderbilt University Medical Center'],
+  ['wvumedicine.wd1.myworkdayjobs.com/wvumedicine/WVUH', 'WVU Medicine'],
+  ['wvumedicine.wd1.myworkdayjobs.com/wvumedicine/UHA', 'WVU Medicine'],
+  ['childrensnational.wd108.myworkdayjobs.com/childrensnational/CN_Careers', "Children's National Hospital"],
+  ['nationwidechildrens.wd5.myworkdayjobs.com/nationwidechildrens/NCHCareers', "Nationwide Children's Hospital"],
+  // Pharma, medical devices and diagnostics.
+  ['msd.wd5.myworkdayjobs.com/msd/SearchJobs', 'Merck'],
+  ['amgen.wd1.myworkdayjobs.com/amgen/Careers', 'Amgen'],
+  ['gilead.wd1.myworkdayjobs.com/gilead/gileadcareers', 'Gilead Sciences'],
+  ['modernatx.wd1.myworkdayjobs.com/modernatx/M_tx', 'Moderna'],
+  ['biibhr.wd3.myworkdayjobs.com/biibhr/external', 'Biogen'],
+  ['bristolmyerssquibb.wd5.myworkdayjobs.com/bristolmyerssquibb/BMS', 'Bristol Myers Squibb'],
+  ['illumina.wd1.myworkdayjobs.com/illumina/illumina-careers', 'Illumina'],
+  ['edwards.wd5.myworkdayjobs.com/edwards/EdwardsCareers', 'Edwards Lifesciences'],
+  ['iqvia.wd1.myworkdayjobs.com/iqvia/IQVIA', 'IQVIA'],
+  ['agilent.wd5.myworkdayjobs.com/agilent/Agilent_Careers', 'Agilent Technologies'],
+  ['agilent.wd5.myworkdayjobs.com/agilent/Agilent_Student_Careers', 'Agilent Technologies'],
+  ['elevancehealth.wd1.myworkdayjobs.com/elevancehealth/ANT', 'Elevance Health'],
+  ['cigna.wd5.myworkdayjobs.com/cigna/cignacareers', 'The Cigna Group'],
+  // Research institutes and universities, which is where bench and lab
+  // openings live: undergraduate research assistants, lab aides, study
+  // coordinators.
+  ['hhmi.wd1.myworkdayjobs.com/hhmi/External', 'Howard Hughes Medical Institute'],
+  ['thejacksonlaboratory.wd503.myworkdayjobs.com/thejacksonlaboratory/External_JAX', 'The Jackson Laboratory'],
+  ['rand.wd5.myworkdayjobs.com/rand/External_Career_Site', 'RAND Corporation'],
+  ['wd5.myworkdaysite.com/uw/UWHires', 'University of Washington'],
+  ['rochester.wd5.myworkdayjobs.com/rochester/UR_Staff', 'University of Rochester'],
+  ['rochester.wd5.myworkdayjobs.com/rochester/UR_Nursing', 'University of Rochester'],
+  ['cornell.wd1.myworkdayjobs.com/cornell/CornellCareerPage', 'Cornell University'],
+  ['brown.wd5.myworkdayjobs.com/brown/staff-careers-brown', 'Brown University'],
+  ['usc.wd5.myworkdayjobs.com/usc/ExternalUSCCareers', 'University of Southern California'],
+  ['northeastern.wd1.myworkdayjobs.com/northeastern/careers', 'Northeastern University'],
+  ['georgetown.wd1.myworkdayjobs.com/georgetown/Georgetown_Admin_Careers', 'Georgetown University'],
+  ['wustl.wd1.myworkdayjobs.com/wustl/External', 'Washington University in St. Louis'],
+  ['umd.wd1.myworkdayjobs.com/umd/UMCP', 'University of Maryland'],
 ];
 const ORACLE: [token: string, label: string][] = [
   ['hdpc.fa.us2.oraclecloud.com/LateralHiring', 'Goldman Sachs'],
@@ -276,6 +343,47 @@ const ORACLE: [token: string, label: string][] = [
   ['eeho.fa.us2.oraclecloud.com/CX_45001', 'Oracle'],
   ['elxw.fa.em3.oraclecloud.com/CX_1001', 'The University of Edinburgh'],
   ['ehac.fa.us6.oraclecloud.com/CX_1', 'Williams-Sonoma'],
+  // Health systems on Oracle. These are among the largest single employers of
+  // student clinical staff in the country.
+  ['ejis.fa.us6.oraclecloud.com/CX_1', 'Mount Sinai Health System'],
+  ['hdkk.fa.us6.oraclecloud.com/CX_1', 'Cedars-Sinai'],
+  ['evac.fa.us2.oraclecloud.com/CX_1', 'Providence'],
+  ['iazuqy.fa.ocs.oraclecloud.com/CX_1', 'UCSF'],
+  ['fa-euwp-saasfaprod1.fa.ocs.oraclecloud.com/CX_1', 'Mayo Clinic'],
+];
+
+/**
+ * Phenom careers sites, keyed by hostname.
+ *
+ * Health systems overwhelmingly front their ATS with one of these, so this is
+ * the list that decides whether a nursing or premed student sees the hospital
+ * down the road from their campus.
+ */
+const PHENOM: [token: string, label: string][] = [
+  ['careers.stanfordhealthcare.org', 'Stanford Health Care'],
+  ['jobs.sutterhealth.org', 'Sutter Health'],
+  ['jobs.bswhealth.com', 'Baylor Scott & White Health'],
+  ['careers.chop.edu', "Children's Hospital of Philadelphia"],
+  ['jobs.trinity-health.org', 'Trinity Health'],
+  ['careers.templehealth.org', 'Temple Health'],
+  ['careers.baptisthealth.net', 'Baptist Health'],
+  ['jobs.cincinnatichildrens.org', "Cincinnati Children's"],
+  ['careers.seattlechildrens.org', "Seattle Children's"],
+  ['careers.tuftsmedicine.org', 'Tufts Medicine'],
+  ['careers.corewellhealth.org', 'Corewell Health'],
+  ['careers.prismahealth.org', 'Prisma Health'],
+  ['careers.wellstar.org', 'Wellstar Health System'],
+  ['careers.bsmhealth.org', 'Bon Secours Mercy Health'],
+  ['careers.yale.edu', 'Yale University'],
+  ['jobs.virginia.edu', 'University of Virginia'],
+  ['careers.labcorp.com', 'Labcorp'],
+  ['jobs.gsk.com', 'GSK'],
+  ['careers.lilly.com', 'Eli Lilly and Company'],
+  ['jobs.merck.com', 'Merck'],
+  ['jobs.danaher.com', 'Danaher'],
+  ['careers.zimmerbiomet.com', 'Zimmer Biomet'],
+  ['jobs.thecignagroup.com', 'The Cigna Group'],
+  ['careers.humana.com', 'Humana'],
 ];
 const RIPPLING: [token: string, label: string][] = [
   ['rippling', 'Rippling'],
@@ -300,7 +408,7 @@ const BREEZY: [token: string, label: string][] = [
  * Eightfold tenants, as `{host}/{domain}`.
  *
  * Most Eightfold instances answer the jobs API only for an authenticated
- * session, so this list stays short by necessity — the adapter treats a 403 as
+ * session, so this list stays short by necessity. The adapter treats a 403 as
  * an empty board rather than a failure. Vanity hosts like Netflix's carry no
  * derivable tenant key either, which is the other reason they are named here
  * rather than discovered.
@@ -321,6 +429,7 @@ function label(token: string): string {
 const PAIRED: [kind: BoardKind, boards: [token: string, label: string][]][] = [
   ['workday', WORKDAY],
   ['oracle', ORACLE],
+  ['phenom', PHENOM],
   ['eightfold', EIGHTFOLD],
   ['rippling', RIPPLING],
   ['bamboohr', BAMBOOHR],
@@ -342,6 +451,9 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'github', token: 'vansh-summer', label: 'GitHub · vanshb03 Summer 2026' },
   { kind: 'github', token: 'simplify-newgrad', label: 'GitHub · SimplifyJobs New Grad' },
   { kind: 'amazon', token: '-', label: 'Amazon' },
+  { kind: 'muse', token: '-', label: 'The Muse (healthcare, science, education)' },
+  { kind: 'orise', token: '-', label: 'ORISE · federal research participation' },
+  { kind: 'usajobs', token: '-', label: 'USAJOBS · federal student openings' },
   { kind: 'remoteok', token: '-', label: 'RemoteOK' },
   { kind: 'arbeitnow', token: '-', label: 'Arbeitnow (Europe)' },
   { kind: 'jobicy', token: '-', label: 'Jobicy (remote)' },
@@ -406,7 +518,7 @@ export function boardFromUrl(url: string): SeedBoard | null {
   const oracle = oracleBoardFromUrl(host, segments);
   if (oracle) {
     // Oracle pods are opaque hashes, so the site name is the only readable
-    // hint — and it is often a placeholder like "CX_1". A real employer name
+    // hint, and it is often a placeholder like "CX_1". A real employer name
     // from the feed replaces this during discovery whenever one is available.
     return { kind: 'oracle', token: encodeOracleToken(oracle), label: label(oracle.site) };
   }
@@ -418,6 +530,12 @@ export function boardFromUrl(url: string): SeedBoard | null {
       token: encodeEightfoldToken(eightfold),
       label: label(host.split('.')[0]),
     };
+  }
+
+  // Branded careers sites, which is how nearly every hospital presents itself.
+  const phenom = phenomHostFromUrl(host, segments);
+  if (phenom) {
+    return { kind: 'phenom', token: phenom, label: label(phenom.split('.')[1] ?? phenom) };
   }
 
   if (host === 'ats.rippling.com') {
@@ -448,7 +566,7 @@ export function boardFromUrl(url: string): SeedBoard | null {
 }
 
 /**
- * The label a board gets when nothing better is known — i.e. derived from its
+ * The label a board gets when nothing better is known, i.e. derived from its
  * own token. Discovery uses this to tell "we only ever had a slug" apart from
  * "someone already gave this board a real employer name".
  */
@@ -460,6 +578,8 @@ export function fallbackLabel(board: SeedBoard): string {
       return label(board.token.split('/')[1] ?? board.token);
     case 'eightfold':
       return label((board.token.split('/')[0] ?? '').split('.')[0]);
+    case 'phenom':
+      return label(board.token.split('.')[1] ?? board.token);
     case 'smartrecruiters':
       return board.token;
     case 'rippling':

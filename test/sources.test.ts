@@ -73,6 +73,17 @@ describe('boardFromUrl', () => {
       'breezy',
       'onyx-insight',
     ],
+    // Phenom, which is how most health systems front their ATS.
+    [
+      'https://careers.chop.edu/us/en/job/1234567/Nurse-Extern',
+      'phenom',
+      'careers.chop.edu',
+    ],
+    [
+      'https://jobs.sutterhealth.org/job/R-89012',
+      'phenom',
+      'jobs.sutterhealth.org',
+    ],
   ];
 
   for (const [url, kind, token] of cases) {
@@ -88,6 +99,12 @@ describe('boardFromUrl', () => {
     assert.equal(boardFromUrl('https://example.com/careers'), null);
     assert.equal(boardFromUrl('not a url'), null);
     assert.equal(boardFromUrl(''), null);
+  });
+
+  it('does not claim every careers host as a Phenom site', () => {
+    // A careers hostname alone proves nothing. Only Phenom's own job path does.
+    assert.equal(boardFromUrl('https://careers.example.org/search-results'), null);
+    assert.equal(boardFromUrl('https://jobs.example.org/openings/1234'), null);
   });
 
   it('does not mistake the Workday API path for a careers site', () => {

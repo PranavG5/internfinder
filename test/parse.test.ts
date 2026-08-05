@@ -41,6 +41,45 @@ describe('classifyProgram', () => {
     assert.equal(classifyProgram('Software Engineering Co-op').programType, 'co-op');
     assert.equal(classifyProgram('Data Apprentice').programType, 'apprenticeship');
   });
+
+  it('accepts research and lab openings that never say "intern"', () => {
+    for (const title of [
+      'Research Experience for Undergraduates in Neuroscience',
+      'Summer Research Program in Cancer Biology',
+      '612 lab opportunity: Immunology of Chronic Infection',
+      'Postbaccalaureate Research Fellowship',
+      'Undergraduate Research Assistant, Cardiology Lab',
+      'CDC Research Participation Program',
+    ]) {
+      assert.equal(classifyProgram(title).isInternship, true, title);
+    }
+  });
+
+  it('accepts the clinical programs premed students actually apply to', () => {
+    for (const title of [
+      'Medical Scribe',
+      'Pre-Health Summer Immersion',
+      'Student Nurse Extern',
+      'Pediatric Audiology Extern',
+      'Doctor of Physical Therapy Clinical Practicum',
+    ]) {
+      assert.equal(classifyProgram(title).isInternship, true, title);
+    }
+  });
+
+  it('rejects career roles that merely contain research words', () => {
+    assert.equal(classifyProgram('Research Program Manager').isInternship, false);
+    assert.equal(classifyProgram('Sr Research Program Specialist').isInternship, false);
+    assert.equal(classifyProgram('Sr. Residency/Fellowship Administrator').isInternship, false);
+  });
+
+  it('rejects postdoctoral and faculty appointments', () => {
+    // These carry every research keyword there is, but they need a finished
+    // doctorate, so they are not student positions.
+    assert.equal(classifyProgram('Research Post Doctoral Fellow - Qian Lab').isInternship, false);
+    assert.equal(classifyProgram('Postdoctoral Research Associate').isInternship, false);
+    assert.equal(classifyProgram('Assistant Professor of Epidemiology').isInternship, false);
+  });
 });
 
 describe('season detection', () => {
@@ -93,6 +132,21 @@ describe('classifyField', () => {
     ['Biology Research Intern', 'Healthcare & Life Sciences'],
     ['ML Research Intern', 'AI & Machine Learning'],
     ['Quantitative Research Intern', 'Quantitative Finance'],
+    // Healthcare splits into families a premed can actually filter on, rather
+    // than one bucket holding a nurse extern and a bench chemist together.
+    ['Nurse Extern - Cardiac ICU', 'Nursing & Allied Health'],
+    ['Physical Therapy Aide Intern', 'Nursing & Allied Health'],
+    ['Pharmacy Intern', 'Medicine & Clinical Care'],
+    ['Dental Assistant Intern', 'Medicine & Clinical Care'],
+    ['Pre-Med Summer Scholar', 'Medicine & Clinical Care'],
+    ['Behavioral Health Counseling Intern', 'Medicine & Clinical Care'],
+    ['Veterinary Medicine Summer Intern', 'Medicine & Clinical Care'],
+    ['Epidemiology Intern, State Health Department', 'Public Health'],
+    ['Global Health Policy Intern', 'Public Health'],
+    ['Clinical Research Coordinator Intern', 'Healthcare & Life Sciences'],
+    ['Wet Lab Research Intern', 'Healthcare & Life Sciences'],
+    ['Biomedical Engineering Intern - Medical Devices', 'Healthcare & Life Sciences'],
+    ['Hospital Administrative Fellow', 'Healthcare & Life Sciences'],
   ];
   for (const [title, expected] of cases) {
     it(`maps "${title}" to ${expected}`, () => {
@@ -397,6 +451,12 @@ describe('stripHtml', () => {
 
   it('unescapes doubly-encoded markup before stripping', () => {
     assert.equal(stripHtml('&lt;p&gt;Apply now&lt;/p&gt;'), 'Apply now');
+  });
+
+  it('rewrites em dashes so none reach the page', () => {
+    assert.equal(stripHtml('<p>Paid role&mdash;housing included</p>'), 'Paid role - housing included');
+    assert.equal(stripHtml('<p>Ten weeks — full time</p>'), 'Ten weeks - full time');
+    assert.equal(stripHtml('<p>Ten weeks &#8212; full time</p>'), 'Ten weeks - full time');
   });
 });
 

@@ -42,7 +42,7 @@ const GITHUB_FEEDS: Record<string, { url: string; label: string }> = {
     label: 'vanshb03 Summer 2026',
   },
   // New-grad postings are mostly not internships and get filtered out on the
-  // way in — but the archive names ~2,600 employer job boards, and every one it
+  // way in, but the archive names ~2,600 employer job boards, and every one it
   // reveals is a board the discovery pass can crawl for internships directly.
   'simplify-newgrad': {
     url: 'https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json',
@@ -188,6 +188,82 @@ export async function fetchJobicy(): Promise<RawListing[]> {
         tags: asList(job.jobType).slice(0, 6),
       };
     });
+}
+
+// ---------------------------------------------------------------- The Muse
+
+interface MuseJob {
+  id?: number;
+  name?: string;
+  contents?: string;
+  publication_date?: string;
+  type?: string;
+  short_name?: string;
+  company?: { name?: string; short_name?: string };
+  locations?: { name?: string }[];
+  categories?: { name?: string }[];
+  levels?: { name?: string; short_name?: string }[];
+  tags?: { name?: string; short_name?: string }[];
+  refs?: { landing_page?: string };
+}
+
+/**
+ * The Muse indexes employers that the ATS crawlers never reach: hospital
+ * systems, health insurers, clinics, school districts and government agencies
+ * post here even when their own careers site is a closed portal.
+ *
+ * The catalog is queried once broadly and once per category that a private
+ * board search would otherwise miss, because the API returns at most 100 pages
+ * for any single query.
+ */
+const MUSE_QUERIES: { category?: string; label: string }[] = [
+  { label: 'all internships' },
+  { category: 'Healthcare', label: 'healthcare' },
+  { category: 'Science and Engineering', label: 'science' },
+  { category: 'Education', label: 'education' },
+];
+
+/** Pages per query. The API serves 20 per page and refuses page 100 or higher. */
+const MUSE_MAX_PAGES = 40;
+
+export async function fetchMuse(): Promise<RawListing[]> {
+  const found = new Map<number, MuseJob>();
+
+  for (const query of MUSE_QUERIES) {
+    for (let page = 0; page < MUSE_MAX_PAGES; page++) {
+      const url =
+        `https://www.themuse.com/api/public/jobs?page=${page}&level=Internship` +
+        (query.category ? `&category=${encodeURIComponent(query.category)}` : '');
+
+      // A page past the end answers 400, which means "done", not "broken".
+      const data = await getJson<{ results?: MuseJob[]; page_count?: number }>(url, {
+        timeoutMs: 30_000,
+        tolerate: [400, 403, 404],
+      });
+      const batch = data?.results ?? [];
+      for (const job of batch) if (job.id) found.set(job.id, job);
+      if (batch.length === 0 || page + 1 >= (data?.page_count ?? 0)) break;
+    }
+  }
+
+  return [...found.values()]
+    .map((job): RawListing => ({
+      source: 'muse',
+      sourceKind: 'aggregator',
+      sourceId: String(job.id),
+      company: decodeHtmlEntities(job.company?.name ?? ''),
+      title: decodeHtmlEntities(job.name ?? ''),
+      applyUrl: job.refs?.landing_page ?? '',
+      description: job.contents ?? null,
+      locations: (job.locations ?? []).map((l) => l.name).filter(Boolean) as string[],
+      terms: [],
+      datePosted: job.publication_date ? Math.floor(Date.parse(job.publication_date) / 1000) || null : null,
+      dateUpdated: null,
+      categoryHint: (job.categories ?? []).map((c) => c.name).filter(Boolean).join(', '),
+      activeFlag: true,
+      tags: (job.tags ?? []).map((t) => t.name).filter(Boolean).slice(0, 6) as string[],
+    }))
+    .filter((l) => l.applyUrl && l.company && l.title);
 }
 
 // ----------------------------------------------------------------- Arbeitnow

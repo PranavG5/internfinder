@@ -9,6 +9,23 @@ const POSITIVE_PROGRAM_PATTERNS: { re: RegExp; type: ProgramType }[] = [
   { re: /\bfellow(?:ship)?s?\b/i, type: 'fellowship' },
   { re: /\b(?:undergraduate|graduate|phd|doctoral)\s+research(?:er)?\b/i, type: 'research' },
   { re: /\bresearch\s+(?:intern|assistant|scholar|experience)\b/i, type: 'research' },
+  // Lab and research openings rarely use the word "intern". The federal
+  // research participation catalogs, university bench postings and REU sites
+  // all have their own vocabulary, and none of it matched before.
+  // Deliberately not "research program": that phrase is most often the middle
+  // of "Research Program Manager", which is a career job, not a placement.
+  { re: /\bresearch\s+(?:participation|opportunit(?:y|ies)|traineeship)\b/i, type: 'research' },
+  { re: /\bresearch\s+experience\s+for\s+undergraduates\b|\bREU\b/, type: 'research' },
+  { re: /\b(?:summer|student|undergraduate)\s+research\b/i, type: 'research' },
+  { re: /\b(?:lab|laboratory)\s+(?:opportunity|assistant|aide)\b/i, type: 'research' },
+  { re: /\bpost-?bac(?:calaureate)?\b/i, type: 'research' },
+  // Clinical training that premed and prehealth students actually apply to.
+  { re: /\bpre-?(?:med|health|dental|vet)\b/i, type: 'internship' },
+  { re: /\b(?:medical|clinical)\s+scribe\b|\bscribe\b/i, type: 'internship' },
+  { re: /\bclinical\s+(?:rotation|clerkship|practicum)\b/i, type: 'internship' },
+  { re: /\bpracticum\b/i, type: 'internship' },
+  { re: /\bshadowing\s+(?:program|opportunit)/i, type: 'internship' },
+  { re: /\bnurse\s+(?:extern|apprentice)/i, type: 'internship' },
   { re: /\bsummer\s+(?:analyst|associate|scholar|program|experience)\b/i, type: 'internship' },
   { re: /\bindustrial\s+placement\b/i, type: 'internship' },
   { re: /\b(?:12|6|3)\s*month\s+placement\b/i, type: 'internship' },
@@ -27,13 +44,17 @@ const POSITIVE_PROGRAM_PATTERNS: { re: RegExp; type: ProgramType }[] = [
 
 /** Titles that are clearly not student internships even if a keyword brushes past. */
 const NEGATIVE_PATTERNS = [
-  /\b(?:senior|staff|principal|lead|head|director|vp|vice\s+president|chief)\b/i,
+  /\b(?:senior|sr\.?|staff|principal|lead|head|director|vp|vice\s+president|chief)\b/i,
   /\bintern(?:ship)?\s+(?:coordinator|manager|supervisor|recruiter|program\s+manager)\b/i,
   /\bmanage(?:r|ment)\s+of\s+intern/i,
   /\b(?:full[-\s]?time|permanent)\s+(?:only|position|role)\b/i,
   /\bnew\s+grad(?:uate)?\s+(?:only|rotational)?\b/i,
   /\bexperienced\s+(?:hire|professional)\b/i,
   /\b\d{1,2}\+?\s*years?\s+of\s+(?:professional\s+)?experience\s+required\b/i,
+  // A postdoc or a faculty appointment needs a finished doctorate, so neither
+  // is a student position no matter how much research language surrounds it.
+  /\bpost[-\s]?doc(?:toral)?\b/i,
+  /\b(?:attending|faculty|professor|tenure[-\s]track)\b/i,
 ];
 
 export interface ProgramClassification {
@@ -114,7 +135,7 @@ export function detectSeason(
     };
   }
 
-  // 3. The description — only the first chunk, where term language lives.
+  // 3. The description, but only the first chunk, where term language lives.
   const head = (description ?? '').slice(0, 2500);
   const fromBody = parseTermString(head);
   if (fromBody.season !== 'Unknown') {

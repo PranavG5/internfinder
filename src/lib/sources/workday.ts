@@ -2,7 +2,7 @@ import type { RawListing } from '../parse';
 import { getJson, postJson } from './http';
 
 /**
- * Workday adapter — by a wide margin the most important source there is.
+ * Workday adapter, by a wide margin the most important source there is.
  *
  * Roughly half of every application link in the community internship archives
  * points at a Workday tenant (`*.myworkdayjobs.com` or `*.myworkdaysite.com`),
@@ -20,7 +20,7 @@ import { getJson, postJson } from './http';
  *
  *  1. `limit` is hard-capped at 20, so everything is paged.
  *  2. `searchText` matches description text by prefix, so "intern" also returns
- *     every job mentioning "internal" or "international" — on a big tenant that
+ *     every job mentioning "internal" or "international". On a big tenant that
  *     is thousands of irrelevant rows.
  *
  * So the board is read four complementary ways and the results unioned:
@@ -108,7 +108,7 @@ function applyUrl(b: WorkdayBoard, externalPath: string): string {
   return `https://${b.host}/en-US/${b.site}${externalPath}`;
 }
 
-/** "Posted 30+ Days Ago" / "Posted Yesterday" — a coarse age, not a date. */
+/** "Posted 30+ Days Ago" / "Posted Yesterday" is a coarse age, not a date. */
 function postedOnToSeconds(postedOn: string | undefined, now: number): number | null {
   if (!postedOn) return null;
   if (/today|just posted/i.test(postedOn)) return Math.floor(now / 1000);
@@ -126,9 +126,16 @@ const isoSecs = (iso: string | null | undefined): number | null => {
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 };
 
-/** Titles worth spending a description request on. */
+/**
+ * Titles worth spending a description request on.
+ *
+ * Health systems and universities name student roles their own way, so extern,
+ * scribe, practicum and research-assistant wording is listed alongside the
+ * corporate vocabulary. Without it a hospital tenant looks empty even while it
+ * is actively hiring student nurses.
+ */
 const INTERNISH_TITLE =
-  /\bintern(?:ship|ships|s)?\b|\bco-?ops?\b|\bapprentice|\bplacement\b|\bworking\s+student\b|\bwerkstudent|\bpraktik|\bstudent\s+(?:trainee|worker|assistant)\b|\bsummer\s+(?:analyst|associate|scholar|program)\b|\bgraduate\s+program\b|\bcampus\b|\buniversity\s+(?:graduate|program)\b/i;
+  /\bintern(?:ship|ships|s)?\b|\bco-?ops?\b|\bapprentice|\bplacement\b|\bworking\s+student\b|\bwerkstudent|\bpraktik|\bstudent\s+(?:trainee|worker|assistant|nurse|research)\b|\bsummer\s+(?:analyst|associate|scholar|program|research)\b|\bgraduate\s+program\b|\bcampus\b|\buniversity\s+(?:graduate|program)\b|\bextern(?:ship)?\b|\bfellow(?:ship)?\b|\bscribe\b|\bpracticum\b|\bpost-?bac|\bpre-?(?:med|health)\b|\bresearch\s+(?:assistant|aide|trainee|scholar)\b|\b(?:lab|laboratory)\s+(?:assistant|aide)\b|\bscholar\b/i;
 
 type AppliedFacets = Record<string, string[]>;
 
@@ -143,7 +150,7 @@ async function page(
     `${cxsBase(b)}/jobs`,
     { appliedFacets, limit: PAGE, offset, searchText },
     // A tenant that moved or renamed its site answers 400/404/422. That is a
-    // board we simply cannot read, not a run-ending failure — the discovery
+    // board we simply cannot read, not a run-ending failure. The discovery
     // pass registers thousands of these from archived links.
     { timeoutMs: 40_000, tolerate: [400, 403, 404, 410, 422] },
   );
@@ -184,7 +191,7 @@ const FACET_GROUPS = new Set(['workerSubType', 'timeType', 'jobFamilyGroup', 'em
 /**
  * Find the facet values that isolate student roles.
  *
- * Facet ids are per-tenant GUIDs, so they can't be hardcoded — but the human
+ * Facet ids are per-tenant GUIDs, so they cannot be hardcoded, but the human
  * labels next to them are consistent enough to match on, and applying one is
  * the only exact filter Workday offers.
  */
@@ -220,15 +227,21 @@ export async function fetchWorkday(token: string, label: string): Promise<RawLis
     await collect(board, '', found, { appliedFacets });
   }
 
-  // "internship" is the precise query — it does not prefix-match "internal".
+  // "internship" is the precise query, since it does not prefix-match "internal".
   await collect(board, 'internship', found);
 
   // A bare "intern" catches titles like "Intern - Hardware" that never say
   // "internship", but only where the tenant is small enough to stay on-topic.
-  const internFirst = await page(board, 'intern', 0);
-  const internTotal = internFirst?.total ?? 0;
-  if (internTotal > 0 && internTotal <= FUZZY_LIMIT) {
-    await collect(board, 'intern', found, { first: internFirst! });
+  // The healthcare and research terms are here for the same reason: a hospital
+  // hires student nurses as "externs" and a university hires undergraduates as
+  // "research assistants", and neither word appears anywhere near "internship".
+  for (const term of ['intern', 'extern', 'student', 'research assistant', 'fellowship']) {
+    const first = await page(board, term, 0);
+    const total = first?.total ?? 0;
+    // Above the fuzzy limit the query has stopped being about student roles.
+    if (first && total > 0 && total <= FUZZY_LIMIT) {
+      await collect(board, term, found, { first });
+    }
   }
 
   // Small boards are cheap to read end to end, and doing so catches the
@@ -243,7 +256,7 @@ export async function fetchWorkday(token: string, label: string): Promise<RawLis
   const postings = [...found.values()];
 
   // Descriptions decide season, pay, eligibility and location type, so they are
-  // worth a request — but only for the postings that could plausibly survive
+  // worth a request, but only for the postings that could plausibly survive
   // classification, and never more than MAX_DETAILS of them.
   const detailQueue = postings
     .filter((p) => INTERNISH_TITLE.test(p.title ?? ''))
@@ -288,7 +301,7 @@ export async function fetchWorkday(token: string, label: string): Promise<RawLis
         terms: [],
         datePosted: posted,
         dateUpdated: posted,
-        // `endDate` is when the posting comes down — a real application deadline.
+        // `endDate` is when the posting comes down, a real application deadline.
         deadline: isoSecs(info?.endDate),
         categoryHint: '',
         activeFlag: true,

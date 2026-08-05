@@ -12,6 +12,7 @@ export type BoardKind =
   | 'workable'
   | 'workday'
   | 'oracle'
+  | 'phenom'
   | 'eightfold'
   | 'rippling'
   | 'bamboohr'
@@ -23,6 +24,7 @@ export const BOARD_KINDS: BoardKind[] = [
   'workday',
   'greenhouse',
   'oracle',
+  'phenom',
   'ashby',
   'lever',
   'smartrecruiters',
@@ -35,7 +37,16 @@ export const BOARD_KINDS: BoardKind[] = [
 ];
 
 /** Cross-company feeds, which are configured once rather than per employer. */
-export const FEED_KINDS = ['github', 'amazon', 'remoteok', 'arbeitnow', 'jobicy'];
+export const FEED_KINDS = [
+  'github',
+  'amazon',
+  'muse',
+  'orise',
+  'usajobs',
+  'remoteok',
+  'arbeitnow',
+  'jobicy',
+];
 
 /** Every source kind the pipeline knows how to fetch. */
 export const SOURCE_KINDS: string[] = [...BOARD_KINDS, ...FEED_KINDS];
@@ -45,6 +56,7 @@ export const KIND_LABELS: Record<string, string> = {
   workday: 'Workday',
   greenhouse: 'Greenhouse',
   oracle: 'Oracle Cloud Recruiting',
+  phenom: 'Phenom careers site',
   ashby: 'Ashby',
   lever: 'Lever',
   smartrecruiters: 'SmartRecruiters',
@@ -56,6 +68,9 @@ export const KIND_LABELS: Record<string, string> = {
   personio: 'Personio',
   github: 'Community lists',
   amazon: 'Amazon',
+  muse: 'The Muse',
+  orise: 'ORISE research programs',
+  usajobs: 'USAJOBS',
   remoteok: 'RemoteOK',
   arbeitnow: 'Arbeitnow',
   jobicy: 'Jobicy',
@@ -123,6 +138,9 @@ export const FIELDS = [
   'Operations & Supply Chain',
   'Human Resources',
   'Legal & Policy',
+  'Medicine & Clinical Care',
+  'Nursing & Allied Health',
+  'Public Health',
   'Healthcare & Life Sciences',
   'Research & Academia',
   'Education',
@@ -168,6 +186,19 @@ export const ROLE_FAMILIES = [
   'supply-chain',
   'hr-recruiting',
   'legal',
+  'medicine',
+  'nursing',
+  'allied-health',
+  'pharmacy',
+  'dentistry',
+  'veterinary',
+  'mental-health',
+  'nutrition',
+  'public-health',
+  'health-admin',
+  'clinical-research',
+  'lab-research',
+  'biomedical-engineering',
   'clinical',
   'biotech',
   'mechanical',
@@ -182,7 +213,7 @@ export const ROLE_FAMILIES = [
 ] as const;
 export type RoleFamily = (typeof ROLE_FAMILIES)[number];
 
-/** Application pipeline. Order matters — it defines the funnel and Kanban columns. */
+/** Application pipeline. Order matters: it defines the funnel and Kanban columns. */
 export const APP_STATUSES = [
   'interested',
   'preparing',

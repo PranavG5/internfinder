@@ -5,7 +5,7 @@
 
 const USER_AGENT =
   process.env.INTERNINDEX_USER_AGENT ??
-  // The repo URL stays as-is — the GitHub repository has not been renamed, and a
+  // The repo URL stays as-is, because the GitHub repository has not been renamed and a
   // contact URL in a User-Agent is only useful if it actually resolves.
   'InternIndex/1.0 (self-hosted internship aggregator; +https://github.com/PranavG5/internfinder)';
 
@@ -28,6 +28,8 @@ export interface FetchOptions {
   tolerate?: number[];
   /** JSON body to POST. Omit for a GET. */
   body?: unknown;
+  /** Form-encoded body to POST, for APIs that predate JSON request bodies. */
+  form?: Record<string, string>;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -63,17 +65,28 @@ function withHostQueue<T>(url: string, task: () => Promise<T>): Promise<T> {
 async function fetchOnce(url: string, opts: FetchOptions): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 30_000);
+
+  const isPost = opts.body !== undefined || opts.form !== undefined;
+  const body = opts.form
+    ? new URLSearchParams(opts.form).toString()
+    : opts.body === undefined
+      ? undefined
+      : JSON.stringify(opts.body);
+  const contentType = opts.form
+    ? 'application/x-www-form-urlencoded; charset=UTF-8'
+    : 'application/json';
+
   try {
     return await fetch(url, {
       signal: controller.signal,
       redirect: 'follow',
-      method: opts.body === undefined ? 'GET' : 'POST',
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+      method: isPost ? 'POST' : 'GET',
+      body,
       headers: {
         'User-Agent': USER_AGENT,
         Accept: 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
-        ...(opts.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(isPost ? { 'Content-Type': contentType } : {}),
         ...opts.headers,
       },
     });
@@ -164,6 +177,21 @@ export async function postJson<T>(
 }
 
 /**
+ * POST a form-encoded body and parse the JSON response.
+ *
+ * Older server-rendered catalogs (the federal research portals in particular)
+ * answer only to `application/x-www-form-urlencoded`, so they need this rather
+ * than a JSON body.
+ */
+export async function postForm<T>(
+  url: string,
+  form: Record<string, string>,
+  opts: FetchOptions = {},
+): Promise<T | null> {
+  return getJson<T>(url, { ...opts, form });
+}
+
+/**
  * Check whether an application link is still live.
  * Returns the HTTP status, plus whether the page says the role has closed.
  */
@@ -187,7 +215,7 @@ export async function checkLink(
       const res = await fetchOnce(url, { timeoutMs, headers: { Accept: 'text/html,*/*' } });
       if (res.status >= 400) return { status: res.status, closed: true };
 
-      // Read a bounded prefix — enough to spot a "closed" banner without
+      // Read a bounded prefix, enough to spot a "closed" banner without
       // downloading whole pages.
       const body = (await res.text()).slice(0, 60_000);
       const closed = CLOSED_MARKERS.some((re) => re.test(body));

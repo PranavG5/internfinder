@@ -9,7 +9,7 @@ interface Rule {
 }
 
 /**
- * Ordered so that more specific families are evaluated first — a
+ * Ordered so that more specific families are evaluated first, so a
  * "Machine Learning Engineer" should land in machine-learning, not swe-general.
  */
 const RULES: Rule[] = [
@@ -139,13 +139,77 @@ const RULES: Rule[] = [
     family: 'policy',
     strong: [/\bpublic\s+policy\b/i, /\bgovernment\s+(?:affairs|relations)\b/i, /\bpolicy\s+(?:analyst|research|intern)\b/i, /\blegislative\b/i, /\bpolitical\b/i, /\binternational\s+relations\b/i, /\bdiplomat/i],
   },
+  // ---- Healthcare, in the order a medical student would disambiguate it ----
+  // These sit ahead of the generic `clinical` bucket so a "Pharmacy Intern"
+  // lands in pharmacy rather than in the catch-all.
+  {
+    family: 'nursing',
+    strong: [/\bnurs(?:e|ing)\b/i, /\bRN\b/, /\bLPN\b/, /\bCNA\b/, /\bBSN\b/, /\bnurse\s+(?:extern|intern|apprentice|tech)/i, /\bpatient\s+care\s+(?:tech|assistant|associate)\b/i, /\bnurse\s+practitioner\b/i, /\bperioperative\b/i],
+  },
+  {
+    family: 'pharmacy',
+    strong: [/\bpharmac(?:y|ist|eutical\s+care)\b/i, /\bPharmD\b/i, /\bapothecary\b/i, /\bmedication\s+(?:therapy|safety|management)\b/i, /\bdispensing\b/i, /\bpharmacy\s+tech/i],
+  },
+  {
+    family: 'dentistry',
+    strong: [/\bdent(?:al|istry|ist)\b/i, /\borthodont/i, /\bendodont/i, /\bperiodont/i, /\boral\s+(?:health|surgery|hygiene)\b/i, /\bDMD\b|\bDDS\b/],
+  },
+  {
+    family: 'veterinary',
+    strong: [/\bveterinar/i, /\bDVM\b/, /\banimal\s+(?:health|care|hospital|shelter)\b/i, /\bzoo\s+(?:keeper|medicine)\b/i, /\bwildlife\s+(?:health|rehabilitation)\b/i],
+  },
+  {
+    family: 'allied-health',
+    strong: [/\bphysical\s+therap/i, /\boccupational\s+therap/i, /\bspeech[-\s](?:language\s+)?patholog/i, /\brespiratory\s+therap/i, /\bradiolog/i, /\bsonograph/i, /\bimaging\s+tech/i, /\bsurgical\s+tech/i, /\bphlebotom/i, /\bEMT\b|\bparamedic\b/i, /\bmedical\s+assistant\b/i, /\bathletic\s+train/i, /\bmedical\s+(?:laboratory|lab)\s+(?:scientist|tech)/i, /\bdiagnostic\s+(?:imaging|medical)\b/i, /\bpatient\s+transport/i, /\baudiolog/i, /\bprosthetic|orthotic/i],
+  },
+  {
+    family: 'mental-health',
+    strong: [/\bmental\s+health\b/i, /\bbehavioral\s+health\b/i, /\bpsycholog/i, /\bpsychiatr/i, /\bcounsel(?:ing|or)\b/i, /\bsocial\s+work(?:er)?\b/i, /\bsubstance\s+(?:use|abuse)\b/i, /\btherap(?:y|ist)\s+(?:intern|assistant)\b/i, /\bapplied\s+behavior\s+analysis\b|\bABA\b/, /\bcrisis\s+(?:counsel|intervention)/i],
+  },
+  {
+    family: 'nutrition',
+    strong: [/\bdietetic|dietitian\b/i, /\bnutrition(?:al|ist)?\b/i, /\bfood\s+(?:science|service)\s+intern/i, /\bculinary\s+(?:medicine|nutrition)\b/i],
+  },
+  {
+    family: 'public-health',
+    strong: [/\bpublic\s+health\b/i, /\bepidemiolog/i, /\bglobal\s+health\b/i, /\bcommunity\s+health\b/i, /\bhealth\s+(?:equity|promotion|education|policy|disparit)/i, /\bMPH\b/, /\bbiostatistic/i, /\bpopulation\s+health\b/i, /\bdisease\s+(?:surveillance|prevention|control)\b/i, /\bharm\s+reduction\b/i],
+    weak: [/\bhealth\s+outcomes\b/i, /\bvaccin/i, /\bsocial\s+determinants\b/i],
+  },
+  {
+    family: 'clinical-research',
+    strong: [/\bclinical\s+(?:research|trial|study|data|operations)\b/i, /\bclinical\s+research\s+coordinator\b/i, /\bCRC\b|\bCRA\b/, /\bIRB\b/, /\bgood\s+clinical\s+practice\b|\bGCP\b/, /\bregulatory\s+affairs\b/i, /\bpharmacovigilance\b/i, /\btranslational\s+research\b/i, /\bclinical\s+trials?\s+(?:assistant|intern)\b/i, /\bhuman\s+subjects\s+research\b/i],
+  },
+  {
+    family: 'health-admin',
+    strong: [/\bhealth(?:care)?\s+(?:administration|administrator|management|operations|consulting|analytics)\b/i, /\bhospital\s+(?:administration|operations|management)\b/i, /\badministrative\s+(?:fellow|resident)\b/i, /\brevenue\s+cycle\b/i, /\bmedical\s+(?:billing|coding|records)\b/i, /\bhealth\s+informatics\b/i, /\bpatient\s+(?:experience|access|navigation)\b/i, /\butilization\s+(?:review|management)\b/i, /\bcare\s+(?:coordination|management)\b/i, /\bmanaged\s+care\b/i, /\bhealth\s+information\s+management\b/i],
+  },
+  {
+    family: 'medicine',
+    strong: [/\bpre-?med\b/i, /\bpre-?health\b/i, /\bmedical\s+(?:student|scribe|intern|shadow)/i, /\bscribe\b/i, /\bphysician\s+(?:shadow|assistant\s+student|intern)/i, /\bshadowing\b/i, /\bmedical\s+school\b/i, /\bMD\/PhD\b/i, /\bsurger(?:y|ical)\s+(?:intern|student)\b/i, /\bpost-?bac(?:calaureate)?\b/i],
+    weak: [/\bcardiolog|\boncolog|\bpediatric|\bneurolog|\bdermatolog|\bemergency\s+medicine\b/i, /\banatom(?:y|ical)\b/i],
+  },
+  {
+    family: 'lab-research',
+    strong: [/\bwet\s+lab\b/i, /\blab(?:oratory)?\s+(?:intern|assistant|aide|technician|opportunity|research)\b/i, /\bbench\s+(?:research|science|work)\b/i, /\bresearch\s+(?:technician|aide|trainee)\b/i, /\bcell\s+cultur/i, /\bspecimen\s+(?:processing|handling)\b/i, /\bhistolog/i, /\bassay\s+development\b/i, /\bin\s+vivo\b|\bin\s+vitro\b/i, /\banimal\s+(?:model|facility|husbandry)\b/i, /\bmicroscop/i],
+    weak: [/\bpipett|\bcentrifug|\bwestern\s+blot|\belisa\b/i],
+  },
+  {
+    family: 'biomedical-engineering',
+    strong: [/\bbiomedical\s+engineer/i, /\bmedical\s+device\b/i, /\bbioengineer/i, /\bbiomechanic/i, /\btissue\s+engineer/i, /\bclinical\s+engineer/i, /\bbiomaterial/i, /\bprosthesis\b/i, /\bmedical\s+imaging\s+(?:engineer|research)\b/i],
+  },
+  // The catch-all for care delivery. Its patterns are deliberately weak,
+  // because words like "hospital" and "clinical" appear in the boilerplate of
+  // every posting a health system writes, including its IT and finance roles.
+  // Left as strong signals they would outscore the specific family that the
+  // title actually names.
   {
     family: 'clinical',
-    strong: [/\bclinical\b/i, /\bnursing\b/i, /\bmedical\s+(?:intern|student|assistant|scribe)\b/i, /\bpatient\s+care\b/i, /\bpharmac/i, /\bpublic\s+health\b/i, /\bepidemiolog/i, /\bhealthcare\b/i, /\bphysical\s+therapy\b/i, /\bradiolog/i],
+    strong: [/\bclinical\s+(?:intern|extern|assistant|support|technician|associate)\b/i, /\bpatient\s+care\b/i, /\bmedical\s+(?:assistant|office|clinic)\b/i],
+    weak: [/\bclinical\b/i, /\bhealthcare\b/i, /\bhospital\b/i, /\bmedicine\b/i, /\bclinic\b/i, /\btelehealth\b/i, /\bhealth\s+(?:system|services)\b/i],
   },
   {
     family: 'biotech',
-    strong: [/\bbio(?:tech|logy|informatics|chemistry|medical|engineering|statistic)/i, /\bgenom/i, /\bmolecular\b/i, /\bpharmaceutical\b/i, /\bdrug\s+(?:discovery|development)\b/i, /\bwet\s+lab\b/i, /\blaboratory\s+(?:intern|technician|assistant)\b/i, /\bcell\s+cultur/i, /\bneuroscien/i],
+    strong: [/\bbio(?:tech|logy|informatics|chemistry|medical|engineering|statistic)/i, /\bgenom/i, /\bmolecular\b/i, /\bpharmaceutical\b/i, /\bdrug\s+(?:discovery|development)\b/i, /\bimmunolog/i, /\bmicrobiolog/i, /\bneuroscien/i, /\bCRISPR\b/i, /\bproteom|\bmetabolom/i, /\bvaccine\s+(?:research|development)\b/i, /\bbioprocess/i],
   },
   {
     family: 'mechanical',
@@ -223,7 +287,20 @@ const FAMILY_TO_FIELD: Record<string, Field> = {
   'hr-recruiting': 'Human Resources',
   legal: 'Legal & Policy',
   policy: 'Legal & Policy',
-  clinical: 'Healthcare & Life Sciences',
+  medicine: 'Medicine & Clinical Care',
+  clinical: 'Medicine & Clinical Care',
+  dentistry: 'Medicine & Clinical Care',
+  veterinary: 'Medicine & Clinical Care',
+  pharmacy: 'Medicine & Clinical Care',
+  'mental-health': 'Medicine & Clinical Care',
+  nutrition: 'Medicine & Clinical Care',
+  nursing: 'Nursing & Allied Health',
+  'allied-health': 'Nursing & Allied Health',
+  'public-health': 'Public Health',
+  'health-admin': 'Healthcare & Life Sciences',
+  'clinical-research': 'Healthcare & Life Sciences',
+  'lab-research': 'Healthcare & Life Sciences',
+  'biomedical-engineering': 'Healthcare & Life Sciences',
   biotech: 'Healthcare & Life Sciences',
   mechanical: 'Mechanical & Aerospace',
   aerospace: 'Mechanical & Aerospace',
@@ -243,6 +320,16 @@ const CATEGORY_HINTS: { re: RegExp; field: Field; family: RoleFamily }[] = [
   { re: /hardware/i, field: 'Hardware & Electrical', family: 'electrical' },
   { re: /product/i, field: 'Product Management', family: 'product-management' },
   { re: /design/i, field: 'Design & UX', family: 'product-design' },
+  // Healthcare aggregators and hospital career sites label their own postings,
+  // and that label is often the only clue a bare title like "Summer Student"
+  // gives us.
+  { re: /nurs/i, field: 'Nursing & Allied Health', family: 'nursing' },
+  { re: /pharmac/i, field: 'Medicine & Clinical Care', family: 'pharmacy' },
+  { re: /public\s*health|epidemiolog/i, field: 'Public Health', family: 'public-health' },
+  { re: /research\s*participation/i, field: 'Healthcare & Life Sciences', family: 'lab-research' },
+  { re: /clinical|patient|physician|medicine|hospital/i, field: 'Medicine & Clinical Care', family: 'clinical' },
+  { re: /health|medical/i, field: 'Healthcare & Life Sciences', family: 'health-admin' },
+  { re: /life\s*science|biotech|pharma/i, field: 'Healthcare & Life Sciences', family: 'biotech' },
 ];
 
 export interface FieldResult {
@@ -283,7 +370,7 @@ export function classifyField(title: string, description = '', categoryHint = ''
     }
   }
 
-  // Nothing matched with confidence — fall back to the source's own category.
+  // Nothing matched with confidence, so fall back to the source's own category.
   if (bestScore < 3 && categoryHint) {
     for (const hint of CATEGORY_HINTS) {
       if (hint.re.test(categoryHint)) {

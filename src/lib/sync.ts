@@ -11,8 +11,16 @@ import {
 } from './sources/bigtech';
 import { fetchEightfold } from './sources/eightfold';
 import { fetchOracle } from './sources/oracle';
+import { fetchPhenom } from './sources/phenom';
 import { fetchWorkday } from './sources/workday';
-import { fetchArbeitnow, fetchGithubList, fetchJobicy, fetchRemoteOk } from './sources/feeds';
+import { fetchOrise, fetchUsaJobs } from './sources/research';
+import {
+  fetchArbeitnow,
+  fetchGithubList,
+  fetchJobicy,
+  fetchMuse,
+  fetchRemoteOk,
+} from './sources/feeds';
 import { checkLink, mapPool } from './sources/http';
 import { boardFromUrl, fallbackLabel, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
 import { DAY } from './util';
@@ -149,6 +157,7 @@ const BOARD_KINDS = new Set([
   'workable',
   'workday',
   'oracle',
+  'phenom',
   'eightfold',
   'rippling',
   'bamboohr',
@@ -176,6 +185,8 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchWorkday(row.token, row.label);
     case 'oracle':
       return fetchOracle(row.token, row.label);
+    case 'phenom':
+      return fetchPhenom(row.token, row.label);
     case 'eightfold':
       return fetchEightfold(row.token, row.label);
     case 'rippling':
@@ -188,6 +199,12 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchPersonio(row.token, row.label);
     case 'amazon':
       return fetchAmazon();
+    case 'muse':
+      return fetchMuse();
+    case 'orise':
+      return fetchOrise();
+    case 'usajobs':
+      return fetchUsaJobs();
     case 'jobicy':
       return fetchJobicy();
     case 'github':
@@ -294,7 +311,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
         ms: Date.now() - startMs,
       });
       errors.push(`${sourceKey}: ${message}`);
-      log(`  ${row.label}: FAILED — ${message}`);
+      log(`  ${row.label}: FAILED: ${message}`);
     }
   });
 
@@ -357,7 +374,15 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 }
 
 /** Singleton feeds emit a bare kind as their source string; boards emit "kind:token". */
-const SINGLETON_KINDS = new Set(['remoteok', 'arbeitnow', 'jobicy', 'amazon']);
+const SINGLETON_KINDS = new Set([
+  'remoteok',
+  'arbeitnow',
+  'jobicy',
+  'amazon',
+  'muse',
+  'orise',
+  'usajobs',
+]);
 
 function sourceKeyForRow(row: SourceRow): string {
   if (SINGLETON_KINDS.has(row.kind)) return row.kind;
@@ -422,7 +447,7 @@ const UPSERT_SQL = (() => {
 })();
 
 /**
- * Insert new listings and refresh existing ones in bulk — one statement per
+ * Insert new listings and refresh existing ones in bulk, one statement per
  * chunk, which matters when the database is across the network.
  *
  * A listing seen again is always marked open: reappearing on a live board is
@@ -542,7 +567,7 @@ function toParams(l: NormalizedListing, now: number): Record<string, unknown> {
 /**
  * Close listings that a healthy source no longer carries.
  *
- * Only sources that fetched successfully in this run are reconciled — a network
+ * Only sources that fetched successfully in this run are reconciled, because a network
  * failure must never be read as "this employer closed every role".
  */
 export async function reconcileOpenness(
@@ -593,7 +618,7 @@ export async function sweepLifecycle(): Promise<number> {
   );
 
   // A term whose start is well behind us can't be applied to, even if the
-  // source still flags it active — e.g. a "Spring 2025" listing seen in 2026.
+  // source still flags it active, e.g. a "Spring 2025" listing seen in 2026.
   count += await exec(
     `UPDATE internships SET is_open = 0, status = 'expired', close_reason = 'term-passed', closed_at = ?
      WHERE is_open = 1 AND start_date IS NOT NULL AND start_date < ?`,
@@ -680,7 +705,7 @@ export async function markDuplicates(): Promise<number> {
  * This is how the catalog grows past the seed list on its own.
  *
  * The employer name is carried alongside the URL because some ATS APIs (Ashby,
- * Lever) never return one — without this, the board slug becomes the displayed
+ * Lever) never return one. Without this the board slug becomes the displayed
  * company, so "k-id" would show up as "K Id" instead of the real name.
  */
 export async function discoverBoards(seen: { url: string; company?: string }[]): Promise<number> {
@@ -713,7 +738,7 @@ export async function discoverBoards(seen: { url: string; company?: string }[]):
   // Backfill a real employer name onto boards we only ever saw as a slug.
   // This matters most for Workday and Oracle, whose tokens are hosting details
   // ("ibqbjb.fa.ocs.oraclecloud.com/CX_1") rather than anything a human would
-  // recognize — and whose label becomes the company on every listing they own.
+  // recognize, and whose label becomes the company on every listing they own.
   await exec(
     `UPDATE source_configs sc SET label = s.label
      FROM unnest(?::text[], ?::text[], ?::text[], ?::text[]) AS s(kind, token, label, fallback)
