@@ -263,6 +263,29 @@ offer and an Austin offer can be compared honestly.
 
 ---
 
+## Link previews
+
+Pasting `internindex.online` into Slack, iMessage, Discord, X, or LinkedIn
+unfurls a 1200x630 card: the compass mark, the pitch, and a slice of the field
+list the catalog is organised by.
+
+The card is a committed asset, `public/og.png`, not a route rendered on demand,
+so a crawler that will not wait around still gets a thumbnail. Its source is
+`scripts/og-image.html`, an ordinary HTML page. To change the card, edit that
+file and re-render:
+
+```bash
+npm i -D playwright-core        # only needed to regenerate, never to build
+npm run og
+```
+
+`CHROMIUM_PATH` points the renderer at a browser if Playwright cannot find one.
+The tags themselves (`og:*`, `twitter:*`) live in `src/app/layout.tsx`. Absolute
+URLs come from `NEXT_PUBLIC_SITE_URL` when set; otherwise production uses
+`https://internindex.online` and preview deploys use their own Vercel host.
+
+---
+
 ## Architecture
 
 ```

@@ -2,10 +2,52 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Nav } from '@/components/Nav';
 
+const TITLE = 'InternIndex: find open internships, track every application';
+const DESCRIPTION =
+  'Aggregates open internship listings from company job boards and community feeds, filters them by everything that matters to a student, and tracks your applications end to end.';
+
+/**
+ * Absolute origin for the share card and canonical URLs. Preview deployments set
+ * their own host, so the Vercel-provided one wins over the production domain
+ * whenever this is not the real site.
+ */
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production' && process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'https://internindex.online');
+
 export const metadata: Metadata = {
-  title: 'InternIndex: find open internships, track every application',
-  description:
-    'Aggregates open internship listings from company job boards and community feeds, filters them by everything that matters to a student, and tracks your applications end to end.',
+  metadataBase: new URL(siteUrl),
+  title: TITLE,
+  description: DESCRIPTION,
+  applicationName: 'InternIndex',
+  // The share card: a 1200x630 PNG rendered from scripts/og-image.html. It is a
+  // committed asset rather than a generated route so a crawler that refuses to
+  // wait, or fetches before the app is warm, still gets a thumbnail.
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: 'InternIndex',
+    title: TITLE,
+    description: DESCRIPTION,
+    locale: 'en_US',
+    images: [
+      {
+        url: '/og.png',
+        width: 1200,
+        height: 630,
+        type: 'image/png',
+        alt: 'InternIndex: internships that are actually open, listed by field and tracked end to end.',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: TITLE,
+    description: DESCRIPTION,
+    images: ['/og.png'],
+  },
   icons: {
     // .ico first with sizes="any" so SVG-capable browsers still prefer the vector.
     icon: [
