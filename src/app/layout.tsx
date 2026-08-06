@@ -10,12 +10,15 @@ const DESCRIPTION =
  * Absolute origin for the share card and canonical URLs. Preview deployments set
  * their own host, so the Vercel-provided one wins over the production domain
  * whenever this is not the real site.
+ *
+ * The www host is the canonical one: the apex 308s to it, and a crawler that
+ * will not follow a redirect to fetch a thumbnail should not be asked to.
  */
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_ENV && process.env.VERCEL_ENV !== 'production' && process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
-    : 'https://internindex.online');
+    : 'https://www.internindex.online');
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

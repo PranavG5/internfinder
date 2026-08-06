@@ -282,7 +282,8 @@ npm run og
 `CHROMIUM_PATH` points the renderer at a browser if Playwright cannot find one.
 The tags themselves (`og:*`, `twitter:*`) live in `src/app/layout.tsx`. Absolute
 URLs come from `NEXT_PUBLIC_SITE_URL` when set; otherwise production uses
-`https://internindex.online` and preview deploys use their own Vercel host.
+`https://www.internindex.online` (the canonical host, since the apex 308s to
+it) and preview deploys use their own Vercel host.
 
 ---
 
