@@ -8,6 +8,7 @@ import {
   type SearchResult,
   type SortKey,
 } from './search-query';
+import { FIELDS, ROLE_FAMILIES } from './types';
 import type { Internship, InternshipView, ProfileView } from './types';
 import { DAY } from './util';
 
@@ -500,8 +501,14 @@ export async function computeFacets(
   ] = await Promise.all([
     countBy('i.season', 'season', 8),
     countBy('i.year', 'year', 10),
-    countBy('i.field', 'field', 30),
-    countBy('i.role_family', 'role', 45),
+    // Sized from the taxonomy rather than a fixed number, because a facet is
+    // ordered by count and truncated from the bottom. A cap smaller than the
+    // vocabulary silently hides the rarest values, which are exactly the ones
+    // a newly added family starts out as: adding a role family used to remove
+    // it from the filter it was added for. The headroom covers values left in
+    // the catalog by earlier versions of the classifier.
+    countBy('i.field', 'field', FIELDS.length + 10),
+    countBy('i.role_family', 'role', ROLE_FAMILIES.length + 10),
     countBy('i.program_type', 'programType', 8),
     countBy('i.location_type', 'locationType', 6),
     countBy('i.country', 'country', 40),
