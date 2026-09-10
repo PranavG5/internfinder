@@ -50,7 +50,8 @@ about the guarantees. Four independent mechanisms keep closed roles out:
 
 1. **Live boards as the source of truth.** Most listings come straight from a
    company's own applicant-tracking system (Workday, Greenhouse, Oracle Cloud
-   Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and others).
+   Recruiting, Ashby, Lever, SmartRecruiters, Workable, Recruitee, Teamtailor,
+   UKG, Rippling and others).
    A role is served by those APIs only while the board is accepting
    applications, so presence in the feed *is* evidence it's open.
 
@@ -100,21 +101,32 @@ There's also a "Sync now" button on the Sources page for any signed-in user.
 | Greenhouse / Ashby / Lever | Startups and mid-size tech and health tech, with full descriptions, structured pay, and real deadlines |
 | SmartRecruiters / Workable | Visa, ServiceNow, Bosch, Experian and European employers |
 | Rippling / BambooHR / Breezy / Personio | The long tail of smaller employers |
+| **Recruitee / Teamtailor / Pinpoint / JobScore / UKG** | The mid-market, which no other adapter reached: European small and mid-size companies, labs, agencies, regional employers, and the health systems and staffing firms that run on UKG |
 | Amazon | `amazon.jobs` directly, several thousand student roles worldwide |
 | Eightfold | Netflix and other tenants that leave their jobs API open |
-| **The Muse** | Employers whose own site is a closed portal: hospitals, insurers, clinics, school districts and agencies. Queried by internship level across all categories plus healthcare, science and education |
+| **The Muse** | Employers whose own site is a closed portal: hospitals, insurers, clinics, school districts and agencies. Queried at internship level across 23 categories, because one query only reaches 100 pages and healthcare alone runs past 170 |
 | **ORISE / Zintellect** | The federal research participation catalog. NIH, CDC, FDA, EPA, NASA, NIST, the Army and Navy labs, and every Department of Energy national laboratory recruit students here |
 | **USAJOBS** | Federal student openings including the government-wide Pathways Internship Program. Needs a free API key (see `.env.example`); the source stays quiet without one |
-| Community lists | The SimplifyJobs (internship + new-grad) and vanshb03 repos, broad coverage with per-listing active flags |
+| Community lists | The SimplifyJobs (internship + new-grad), vanshb03 and cvrve repos, broad coverage with per-listing active flags |
 | Public boards | RemoteOK, Jobicy, Arbeitnow, covering remote and European roles |
+| **Hacker News · who is hiring** | The monthly thread, read for the job boards it links. Several hundred employers per thread, each linking its own board |
+| **Reddit** | Twenty student and career subreddits, read for the apply links their posts carry |
 
 **The source list grows itself, and that is the main engine.** Every sync reads
 the apply links it encounters and starts tracking any employer board it
-recognizes, across all thirteen providers above. The seed list ships ~490 boards
-each confirmed to return live internships (`npm run verify-seeds` re-checks
+recognizes, across all eighteen providers above. The seed list ships ~1,090
+boards, each confirmed live when it was added (`npm run verify-seeds` re-checks
 them); the community archives name roughly **4,000 employer boards**, and the
 discovery pass registers them on the first full run. You can also paste any
 posting URL on the Sources page to add a board by hand.
+
+Hacker News and Reddit feed that engine rather than the catalog. A forum post
+announcing an opening is a lead, not a listing: the title is not a role title
+and the poster is not the employer. So those two sources contribute only the
+apply URLs they mention, discovery turns each into an employer job board, and
+the role enters the catalog on the next run **from the company's own board**,
+where its openness can actually be verified. A single pass over the monthly
+Hacker News thread yields ~1,750 links and ~165 employer boards.
 
 ```bash
 npm run sync                          # everything (caps company boards per run)

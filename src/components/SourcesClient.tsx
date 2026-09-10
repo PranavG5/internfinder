@@ -261,8 +261,8 @@ export function SourcesClient() {
           <form className="card space-y-2 p-4" onSubmit={addSource}>
             <p className="text-[0.8125rem]" style={{ color: 'var(--ink-secondary)' }}>
               Paste a posting URL from any supported provider (Workday, Greenhouse, Oracle Cloud
-              Recruiting, Ashby, Lever, SmartRecruiters, Workable, Rippling and more) and the board
-              behind it gets tracked from then on.
+              Recruiting, Ashby, Lever, SmartRecruiters, Workable, Recruitee, Teamtailor, UKG,
+              Rippling and more) and the board behind it gets tracked from then on.
             </p>
             <div className="flex flex-wrap gap-2">
               <input

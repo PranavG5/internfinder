@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { boardFromUrl, fallbackLabel } from '../src/lib/sources/seed';
+import { decodeUkgToken } from '../src/lib/sources/midmarket';
 import { decodeWorkdayToken } from '../src/lib/sources/workday';
 
 /**
@@ -84,6 +85,43 @@ describe('boardFromUrl', () => {
       'phenom',
       'jobs.sutterhealth.org',
     ],
+    // The mid-market providers, which is most employers outside the Fortune 500.
+    [
+      'https://attendi.recruitee.com/o/machine-learning-intern',
+      'recruitee',
+      'attendi',
+    ],
+    [
+      'https://virtasant.teamtailor.com/jobs/7563920-data-intern',
+      'teamtailor',
+      'virtasant',
+    ],
+    // Teamtailor gives larger customers a regional subdomain.
+    [
+      'https://arborealmanagement.na.teamtailor.com/jobs/684013-intern',
+      'teamtailor',
+      'arborealmanagement',
+    ],
+    [
+      'https://safetywing.pinpointhq.com/postings/261cc20f-e1ae-4c7a-88ba-8ed633eea78f',
+      'pinpoint',
+      'safetywing',
+    ],
+    [
+      'https://careers.jobscore.com/careers/hexagonmininginc/jobs/software-intern-dU8dXR',
+      'jobscore',
+      'hexagonmininginc',
+    ],
+    [
+      'https://recruiting.ultipro.com/GRE1013GIT/JobBoard/4f866dba-368d-433e-bb2c-bfd2dd0b1efc/?q=intern',
+      'ukg',
+      'recruiting.ultipro.com/GRE1013GIT/4f866dba-368d-433e-bb2c-bfd2dd0b1efc',
+    ],
+    [
+      'https://recruiting2.ultipro.com/PHO1000PHXSE/JobBoard/c249bb71-c106-49f4-9ae1-fd8f0173d326/OpportunityDetail?opportunityId=c8eb9273',
+      'ukg',
+      'recruiting2.ultipro.com/PHO1000PHXSE/c249bb71-c106-49f4-9ae1-fd8f0173d326',
+    ],
   ];
 
   for (const [url, kind, token] of cases) {
@@ -110,6 +148,23 @@ describe('boardFromUrl', () => {
   it('does not mistake the Workday API path for a careers site', () => {
     const board = boardFromUrl('https://ngc.wd1.myworkdayjobs.com/wday/cxs/ngc/Site/jobs');
     assert.equal(board, null);
+  });
+
+  it('will not take a UKG board without its board id', () => {
+    // The customer code alone cannot be queried, so a half link is not a board.
+    assert.equal(boardFromUrl('https://recruiting.ultipro.com/GRE1013GIT/JobBoard/'), null);
+    assert.equal(boardFromUrl('https://recruiting.ultipro.com/GRE1013GIT/JobBoard/not-a-guid'), null);
+  });
+
+  it('round-trips a UKG token back to host, customer code, and board', () => {
+    const board = boardFromUrl(
+      'https://recruiting2.ultipro.com/ARU1000ARUP/JobBoard/62cc791d-612e-42e6-909f-0de27efe2038/OpportunityDetail?opportunityId=abc',
+    );
+    assert.deepEqual(decodeUkgToken(board!.token), {
+      host: 'recruiting2.ultipro.com',
+      code: 'ARU1000ARUP',
+      board: '62cc791d-612e-42e6-909f-0de27efe2038',
+    });
   });
 
   it('round-trips a Workday token back to host, tenant, and site', () => {

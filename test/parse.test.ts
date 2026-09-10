@@ -9,7 +9,7 @@ import { parseLocations } from '../src/lib/parse/location';
 import { classifyProgram, detectSeason, parseTermString } from '../src/lib/parse/season';
 import { extractSkills } from '../src/lib/parse/skills';
 import { normalize } from '../src/lib/parse';
-import { parseCsv, stripHtml, toCsv } from '../src/lib/util';
+import { decodeHtmlEntities, parseCsv, stripHtml, toCsv } from '../src/lib/util';
 
 describe('classifyProgram', () => {
   it('accepts obvious internship titles', () => {
@@ -457,6 +457,23 @@ describe('stripHtml', () => {
     assert.equal(stripHtml('<p>Paid role&mdash;housing included</p>'), 'Paid role - housing included');
     assert.equal(stripHtml('<p>Ten weeks — full time</p>'), 'Ten weeks - full time');
     assert.equal(stripHtml('<p>Ten weeks &#8212; full time</p>'), 'Ten weeks - full time');
+  });
+});
+
+describe('decodeHtmlEntities', () => {
+  it('decodes decimal and hex character references', () => {
+    assert.equal(decodeHtmlEntities('caf&#233;'), 'café');
+    assert.equal(decodeHtmlEntities('caf&#xe9;'), 'café');
+  });
+
+  it('recovers the URLs that Hacker News escapes a slash at a time', () => {
+    // Every link in a "Who is hiring?" comment arrives in this shape, so a
+    // decoder that misses it turns the densest list of employer job boards
+    // anywhere into nothing at all.
+    assert.equal(
+      decodeHtmlEntities('https:&#x2F;&#x2F;boards.greenhouse.io&#x2F;acme'),
+      'https://boards.greenhouse.io/acme',
+    );
   });
 });
 

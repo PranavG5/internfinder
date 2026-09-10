@@ -17,7 +17,12 @@ export type BoardKind =
   | 'rippling'
   | 'bamboohr'
   | 'breezy'
-  | 'personio';
+  | 'personio'
+  | 'recruitee'
+  | 'teamtailor'
+  | 'pinpoint'
+  | 'jobscore'
+  | 'ukg';
 
 /** Per-employer board providers, in the order they matter for coverage. */
 export const BOARD_KINDS: BoardKind[] = [
@@ -34,6 +39,11 @@ export const BOARD_KINDS: BoardKind[] = [
   'bamboohr',
   'breezy',
   'personio',
+  'recruitee',
+  'teamtailor',
+  'pinpoint',
+  'jobscore',
+  'ukg',
 ];
 
 /** Cross-company feeds, which are configured once rather than per employer. */
@@ -46,6 +56,8 @@ export const FEED_KINDS = [
   'remoteok',
   'arbeitnow',
   'jobicy',
+  'hackernews',
+  'reddit',
 ];
 
 /** Every source kind the pipeline knows how to fetch. */
@@ -66,6 +78,11 @@ export const KIND_LABELS: Record<string, string> = {
   bamboohr: 'BambooHR',
   breezy: 'Breezy',
   personio: 'Personio',
+  recruitee: 'Recruitee',
+  teamtailor: 'Teamtailor',
+  pinpoint: 'Pinpoint',
+  jobscore: 'JobScore',
+  ukg: 'UKG (UltiPro)',
   github: 'Community lists',
   amazon: 'Amazon',
   muse: 'The Muse',
@@ -74,6 +91,8 @@ export const KIND_LABELS: Record<string, string> = {
   remoteok: 'RemoteOK',
   arbeitnow: 'Arbeitnow',
   jobicy: 'Jobicy',
+  hackernews: 'Hacker News hiring threads',
+  reddit: 'Reddit job posts',
 };
 
 export const LOCATION_TYPES = ['remote', 'hybrid', 'onsite', 'unknown'] as const;

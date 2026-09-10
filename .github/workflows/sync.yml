@@ -7,7 +7,9 @@
 #
 # The catalog tracks several thousand employer boards, so no single run touches
 # them all. Boards are picked least-recently-synced first and round-robin across
-# providers, which walks the whole set roughly every day and a half.
+# providers, which walks the whole set roughly every day and a half. The board
+# cap tracks the size of the catalog: raise it when the seed list or the
+# discovery pass grows, or the walk slows down to match.
 #
 # Requires one repository secret:
 #   SUPABASE_DB_URL is the Supabase Postgres connection string
@@ -22,7 +24,7 @@ on:
     inputs:
       max_boards:
         description: 'Company boards to touch this run'
-        default: '900'
+        default: '1200'
       verify:
         description: 'Listings to link-check afterwards'
         default: '500'
@@ -53,7 +55,7 @@ jobs:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           # Read through the environment rather than interpolated into the
           # script, so a dispatch input can never become shell syntax.
-          MAX_BOARDS: ${{ inputs.max_boards || '900' }}
+          MAX_BOARDS: ${{ inputs.max_boards || '1200' }}
           VERIFY: ${{ inputs.verify || '500' }}
           KINDS: ${{ inputs.kinds }}
         run: |

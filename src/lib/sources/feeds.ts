@@ -48,6 +48,12 @@ const GITHUB_FEEDS: Record<string, { url: string; label: string }> = {
     url: 'https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json',
     label: 'SimplifyJobs New Grad',
   },
+  // Same schema, separately maintained, and its employers barely overlap with
+  // the Simplify archive above.
+  'cvrve-newgrad': {
+    url: 'https://raw.githubusercontent.com/cvrve/New-Grad/dev/.github/scripts/listings.json',
+    label: 'cvrve New Grad',
+  },
 };
 
 export async function fetchGithubList(token: string): Promise<RawListing[]> {
@@ -221,10 +227,37 @@ const MUSE_QUERIES: { category?: string; label: string }[] = [
   { category: 'Healthcare', label: 'healthcare' },
   { category: 'Science and Engineering', label: 'science' },
   { category: 'Education', label: 'education' },
+  // One query can only reach 100 pages, so every category worth naming is
+  // asked for separately. These are the categories the catalog actually
+  // answers for at the internship level; the ones that come back empty are
+  // left out rather than spending a request on nothing.
+  { category: 'Software Engineering', label: 'software' },
+  { category: 'Data and Analytics', label: 'data' },
+  { category: 'Human Resources and Recruitment', label: 'people' },
+  { category: 'Business Operations', label: 'operations' },
+  { category: 'Accounting and Finance', label: 'finance' },
+  { category: 'Project Management', label: 'project management' },
+  { category: 'Product Management', label: 'product' },
+  { category: 'Sales', label: 'sales' },
+  { category: 'Transportation and Logistics', label: 'logistics' },
+  { category: 'Design and UX', label: 'design' },
+  { category: 'Legal Services', label: 'legal' },
+  { category: 'Media, PR, and Communications', label: 'communications' },
+  { category: 'Customer Service', label: 'customer service' },
+  { category: 'Retail', label: 'retail' },
+  { category: 'Construction', label: 'construction' },
+  { category: 'Real Estate', label: 'real estate' },
+  { category: 'Personal Care and Services', label: 'personal care' },
+  { category: 'Protective Services', label: 'protective services' },
 ];
 
-/** Pages per query. The API serves 20 per page and refuses page 100 or higher. */
-const MUSE_MAX_PAGES = 40;
+/**
+ * Pages per query. The API serves 20 per page and refuses page 100 or higher.
+ *
+ * Healthcare alone runs past 170 pages, so anything short of the ceiling is
+ * throwing away listings that the catalog is being asked for by name.
+ */
+const MUSE_MAX_PAGES = 99;
 
 export async function fetchMuse(): Promise<RawListing[]> {
   const found = new Map<number, MuseJob>();

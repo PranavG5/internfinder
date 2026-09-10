@@ -11,6 +11,7 @@
 import type { BoardKind } from '../types';
 import { encodeEightfoldToken, eightfoldBoardFromUrl } from './eightfold';
 import { encodeOracleToken, oracleBoardFromUrl } from './oracle';
+import { encodeUkgToken, ukgBoardFromUrl } from './midmarket';
 import { phenomHostFromUrl } from './phenom';
 import { encodeWorkdayToken, workdayBoardFromUrl } from './workday';
 
@@ -52,6 +53,27 @@ const GREENHOUSE = [
   'talkspace', 'curative', 'honor', 'elationhealth', 'oshihealth',
   'charliehealth', 'trustedhealth', 'cloverhealth', 'iterativehealth',
   'akidolabs', 'welbehealth', 'resilience',
+  // Expansion wave: every board below answered its provider's API with live
+  // postings when it was added. Most came from probing the employers students
+  // actually name (verified against the company's own board, never a listing
+  // site) and from the boards companies link in the monthly hiring threads.
+  '6sense', 'adyen', 'air', 'algolia', 'alloy', 'alta', 'antheia', 'apptronik', 'attentive',
+  'axiom', 'axonius', 'bandwidth', 'baselayer', 'betterment', 'beyond', 'biofourmis', 'bitgo',
+  'bitwarden', 'blacklane', 'blend', 'block', 'branch', 'brave', 'buildkite', 'bungie', 'calm',
+  'canonical', 'carbon', 'chainguard', 'chargepoint', 'checkbook', 'clear', 'coalition',
+  'cognism', 'comet', 'consensys', 'corelight', 'coupang', 'current', 'cybereason', 'dashlane',
+  'descope', 'dialpad', 'didi', 'divergent', 'doppel', 'dragos', 'durable', 'enveritas',
+  'epirus', 'erasca', 'expel', 'fairlife', 'fastly', 'feedzai', 'fetch', 'figure',
+  'fireblocks', 'five9', 'forbes', 'formlabs', 'forter', 'forward', 'gemini', 'ghost',
+  'graphcore', 'highnote', 'honeycomb', 'hudl', 'huntress', 'innovid', 'iterable', 'jumio',
+  'knock', 'kodiak', 'lattice', 'lightmatter', 'lithic', 'markforged', 'melio', 'mixpanel',
+  'monzo', 'motional', 'motive', 'natera', 'netlify', 'netskope', 'nkarta', 'nuvalent',
+  'octave', 'oportun', 'otter', 'pacaso', 'papa', 'payoneer', 'perpay', 'point72', 'porter',
+  'prove', 'ripple', 'riskified', 'roofstock', 'salesloft', 'schonfeld', 'scopely', 'sendbird',
+  'sezzle', 'smartsheet', 'spin', 'spire', 'sunnova', 'sweetgreen', 'taboola', 'tailscale',
+  'tenstorrent', 'thanx', 'ubiquiti', 'universal', 'upgrade', 'upstart', 'vacasa', 'veracode',
+  'veriff', 'verve', 'via', 'vonage', 'vtex', 'wayve', 'webflow', 'wise', 'wolt', 'wrike',
+  'xometry', 'yubico',
 ] as const;
 
 const LEVER = [
@@ -61,6 +83,15 @@ const LEVER = [
   'plaid', 'saronic',
   // Health tech.
   'nomihealth',
+  // Expansion wave: every board below answered its provider's API with live
+  // postings when it was added. Most came from probing the employers students
+  // actually name (verified against the company's own board, never a listing
+  // site) and from the boards companies link in the monthly hiring threads.
+  'aircall', 'alector', 'anomali', 'anyscale', 'arcadia', 'contentsquare', 'deliverect',
+  'dexterity', 'factor', 'finix', 'fundrise', 'gopuff', 'immuta', 'kasada', 'latch',
+  'matillion', 'metabase', 'osaro', 'placemakr', 'porter', 'prosper', 'protolabs', 'resilinc',
+  'rover', 'scaleway', 'secureframe', 'sonatype', 'sophos', 'sysdig', 'telesat', 'twingate',
+  'voltus', 'waabi', 'wealthfront', 'zilliz',
 ] as const;
 
 const ASHBY = [
@@ -76,6 +107,21 @@ const ASHBY = [
   // Clinical AI and digital health.
   'openevidence', 'nabla', 'counsel', 'superpower', 'tennr', 'anterior',
   'clarium', 'rula', 'slingshotai', 'neko-health', 'cradlebio',
+  // Expansion wave: every board below answered its provider's API with live
+  // postings when it was added. Most came from probing the employers students
+  // actually name (verified against the company's own board, never a listing
+  // site) and from the boards companies link in the monthly hiring threads.
+  'acorns', 'airbyte', 'airwallex', 'alchemy', 'anyscale', 'aptura', 'astera', 'astra',
+  'baseten', 'bestow', 'bliro', 'cantina', 'capsule', 'castle', 'circle', 'clerk', 'colonist',
+  'column', 'confluent', 'DeepL', 'delinea', 'deliveroo', 'demandbase', 'docker', 'doppel',
+  'drata', 'dryft', 'elliptic', 'expensify', 'firetiger', 'flink', 'forus', 'grow-therapy',
+  'headway', 'iterable', 'knock', 'ladder', 'langdock', 'lemonade', 'lifespan', 'mechanize',
+  'middesk', 'netgear', 'nubank', 'old-mission-capital', 'olympus', 'openly', 'paxos',
+  'Pear-VC', 'persona', 'plaid', 'prelude', 'prior-labs', 'railway', 'redis', 'render', 'rho',
+  'rilla', 'saronic', 'second-front-systems', 'secureframe', 'semgrep', 'sentry', 'sisense',
+  'slingshot-aerospace', 'snowflake', 'socure', 'sprinter-health', 'strava', 'stream',
+  'stytch', 'supercell', 'tonal', 'trulioo', 'turion-space', 'upvest', 'volta', 'vultr',
+  'wayve', 'Weave', 'whoop',
 ] as const;
 
 const SMARTRECRUITERS = [
@@ -87,6 +133,11 @@ const SMARTRECRUITERS = [
 
 const WORKABLE = [
   'blueground', 'huggingface', 'moodle',
+  // Expansion wave: every board below answered its provider's API with live
+  // postings when it was added. Most came from probing the employers students
+  // actually name (verified against the company's own board, never a listing
+  // site) and from the boards companies link in the monthly hiring threads.
+  'treatwell',
 ] as const;
 
 /**
@@ -202,8 +253,9 @@ const WORKDAY: [token: string, label: string][] = [
   ['uline.wd1.myworkdayjobs.com/uline/Uline_Careers', 'Uline'],
   ['adobe.wd5.myworkdayjobs.com/adobe/external_experienced', 'Adobe'],
   ['comcast.wd5.myworkdayjobs.com/comcast/Comcast_Careers', 'Comcast'],
+  // Workday site names are case-insensitive, so the lowercase twin of this
+  // token was the same board fetched twice under a second employer name.
   ['kla.wd1.myworkdayjobs.com/kla/Search', 'KLA'],
-  ['kla.wd1.myworkdayjobs.com/kla/search', 'KLA Corporation'],
   ['relx.wd3.myworkdayjobs.com/relx/relx', 'RELX'],
   ['spgi.wd5.myworkdayjobs.com/spgi/SPGI_Careers', 'S&P Global'],
   ['allstate.wd5.myworkdayjobs.com/allstate/allstate_careers', 'Allstate Insurance Company'],
@@ -279,6 +331,36 @@ const WORKDAY: [token: string, label: string][] = [
   ['georgetown.wd1.myworkdayjobs.com/georgetown/Georgetown_Admin_Careers', 'Georgetown University'],
   ['wustl.wd1.myworkdayjobs.com/wustl/External', 'Washington University in St. Louis'],
   ['umd.wd1.myworkdayjobs.com/umd/UMCP', 'University of Maryland'],
+  // Expansion wave: verified live when added.
+  ['albemarle.wd5.myworkdayjobs.com/albemarle/External', 'Albemarle'],
+  ['arcticwolf.wd1.myworkdayjobs.com/arcticwolf/External', 'Arctic Wolf'],
+  ['aviagen.wd1.myworkdayjobs.com/aviagen/aviagen-careers', 'Aviagen'],
+  ['blackrock.wd1.myworkdayjobs.com/blackrock/BlackRock_Professional', 'BlackRock'],
+  ['cambiumlearning.wd1.myworkdayjobs.com/cambiumlearning/camb', 'Cambium Learning Group'],
+  ['cenovus.wd3.myworkdayjobs.com/cenovus/careers', 'Cenovus Energy'],
+  ['ceritypartners.wd12.myworkdayjobs.com/ceritypartners/ceritypartnerscareers', 'Cerity Partners'],
+  ['desjardins.wd10.myworkdayjobs.com/desjardins/Desjardins', 'Desjardins'],
+  ['djeholdings.wd5.myworkdayjobs.com/djeholdings/ZenoCareers', 'Zeno Group'],
+  ['dowjones.wd1.myworkdayjobs.com/dowjones/Dow_Jones_Career', 'Dow Jones'],
+  ['ebay.wd5.myworkdayjobs.com/ebay/apply', 'eBay'],
+  ['healthcare.wd1.myworkdayjobs.com/healthcare/Search', 'Solventum'],
+  ['kiongroup.wd3.myworkdayjobs.com/kiongroup/KION_SCS', 'KION Group'],
+  ['labcorp.wd1.myworkdayjobs.com/labcorp/External', 'Labcorp'],
+  ['mastercard.wd1.myworkdayjobs.com/mastercard/CorporateCareers', 'Mastercard'],
+  ['medtronic.wd1.myworkdayjobs.com/medtronic/MedtronicCareers', 'Medtronic'],
+  ['myhrabc.wd5.myworkdayjobs.com/myhrabc/Global', 'Cencora'],
+  ['nelnet.wd1.myworkdayjobs.com/nelnet/MyNelnet', 'Nelnet'],
+  ['premierinc.wd1.myworkdayjobs.com/premierinc/External_Professional', 'Premier Inc.'],
+  ['relx.wd3.myworkdayjobs.com/relx/ElsevierJobs', 'Elsevier'],
+  ['sonyglobal.wd1.myworkdayjobs.com/sonyglobal/SonyGlobalCareers', 'Sony'],
+  ['trumpf.wd3.myworkdayjobs.com/trumpf/TRUMPF_Graduates_and_Professionals', 'TRUMPF'],
+  ['tuftsmedicine.wd1.myworkdayjobs.com/tuftsmedicine/Jobs', 'Tufts Medicine'],
+  ['ucar.wd5.myworkdayjobs.com/ucar/UCAR_Careers', 'University Corporation for Atmospheric Research'],
+  ['wd1.myworkdaysite.com/ssctech/SSCTechnologies', 'SS&C Technologies'],
+  ['wd1.myworkdaysite.com/upenn/careers-at-penn', 'University of Pennsylvania'],
+  ['workwear.wd503.myworkdayjobs.com/workwear/Careers', 'Workwear Outfitters'],
+  ['wpengine.wd1.myworkdayjobs.com/wpengine/WP_Engine', 'WP Engine'],
+  ['zeissgroup.wd3.myworkdayjobs.com/zeissgroup/External', 'ZEISS Group'],
 ];
 const ORACLE: [token: string, label: string][] = [
   ['hdpc.fa.us2.oraclecloud.com/LateralHiring', 'Goldman Sachs'],
@@ -350,6 +432,10 @@ const ORACLE: [token: string, label: string][] = [
   ['evac.fa.us2.oraclecloud.com/CX_1', 'Providence'],
   ['iazuqy.fa.ocs.oraclecloud.com/CX_1', 'UCSF'],
   ['fa-euwp-saasfaprod1.fa.ocs.oraclecloud.com/CX_1', 'Mayo Clinic'],
+  // Expansion wave: verified live when added.
+  ['eeho.fa.us2.oraclecloud.com/CX_1', 'Oracle'],
+  ['eevd.fa.us6.oraclecloud.com/CX_15', 'San Francisco Chronicle'],
+  ['fa-ewto-saasfaprod1.fa.ocs.oraclecloud.com/CX_1001', 'Milestone Systems'],
 ];
 
 /**
@@ -384,6 +470,14 @@ const PHENOM: [token: string, label: string][] = [
   ['careers.zimmerbiomet.com', 'Zimmer Biomet'],
   ['jobs.thecignagroup.com', 'The Cigna Group'],
   ['careers.humana.com', 'Humana'],
+  // Expansion wave: verified live when added.
+  ['careers.adobe.com', 'Adobe'],
+  ['careers.gene.com', 'Genentech'],
+  ['careers.idexx.com', 'IDEXX Laboratories'],
+  ['careers.miami.edu', 'University of Miami'],
+  ['careers.snowflake.com', 'Snowflake'],
+  ['careers.southstatebank.com', 'SouthState Bank'],
+  ['jobs.republicservices.com', 'Republic Services'],
 ];
 const RIPPLING: [token: string, label: string][] = [
   ['rippling', 'Rippling'],
@@ -396,12 +490,19 @@ const RIPPLING: [token: string, label: string][] = [
   ['aapd-jobs', 'American Association of People With Disabilities'],
   ['ampliwork-inc', 'Ampliwork, Inc'],
   ['onware', 'Onware'],
+  // Expansion wave: verified live when added.
+  ['boom-supersonic', 'boom-supersonic'],
 ];
 const BAMBOOHR: [token: string, label: string][] = [
   ['safransed', 'Safran'],
+  // Expansion wave: verified live when added.
+  ['kubermatic', 'kubermatic'],
 ];
 const BREEZY: [token: string, label: string][] = [
   ['vetsez', 'VetsEZ'],
+  // Expansion wave: verified live when added.
+  ['djamo', 'djamo'],
+  ['zetier', 'zetier'],
 ];
 
 /**
@@ -415,6 +516,8 @@ const BREEZY: [token: string, label: string][] = [
  */
 const EIGHTFOLD: [token: string, label: string][] = [
   ['explore.jobs.netflix.net/netflix.com', 'Netflix'],
+  // Expansion wave: verified live when added.
+  ['albemarle.eightfold.ai/albemarle.com', 'Albemarle'],
 ];
 
 /** Turn a board slug into something presentable, e.g. "ginkgobioworks" -> "Ginkgobioworks". */
@@ -425,6 +528,334 @@ function label(token: string): string {
     .trim();
 }
 
+/**
+ * Boards whose slug does not read as the employer's name.
+ *
+ * "sonyinteractiveentertainmentglobal" title-cased is not "PlayStation", and
+ * the label is what the listing shows as the company, so these are named
+ * outright rather than derived.
+ */
+
+const GREENHOUSE_NAMED: [token: string, label: string][] = [
+  ['abnormalsecurity', 'Abnormal'],
+  ['acadiapharmaceuticals', 'Acadia Pharmaceuticals'],
+  ['aegisventures', 'Aegis Ventures'],
+  ['agilityrobotics', 'Agility Robotics'],
+  ['alarmcom', 'Alarm.com'],
+  ['align', 'A-LIGN External'],
+  ['apolloio', 'Apollo.io'],
+  ['applovin', 'AppLovin'],
+  ['appviewx', 'AppViewX'],
+  ['aqr', 'AQR'],
+  ['archer56', 'Archer Aviation'],
+  ['arkoselabs', 'Arkose Labs'],
+  ['asteralabs', 'Astera Labs'],
+  ['astspacemobile', 'AST SpaceMobile'],
+  ['axsometherapeutics', 'Axsome Therapeutics'],
+  ['batteryventures', 'Battery'],
+  ['bayada', 'Bayada Home Health Care'],
+  ['beam', 'Bridge to Enter Advanced Mathematics (BEAM)'],
+  ['bessemerventurepartners', 'Bessemer Venture Partners'],
+  ['betterhelp', 'BetterHelp'],
+  ['beyondtrust', 'BeyondTrust'],
+  ['bigid', 'BigID'],
+  ['billcom', 'BILL'],
+  ['billiontoone', 'BillionToOne'],
+  ['blacksky', 'BlackSky'],
+  ['blinkhealth', 'Blink Health'],
+  ['blueprintmedicines', 'Blueprint Medicines'],
+  ['blueroseresearch', 'Blue Rose Research'],
+  ['butterflynetwork', 'Butterfly Network'],
+  ['carrotfertility', 'Carrot'],
+  ['catonetworks', 'Cato Networks'],
+  ['charles', 'charles'],
+  ['chicagotrading', 'CTC Lateral - Website & LinkedIn'],
+  ['circleci', 'CircleCI'],
+  ['commercetools', 'commercetools'],
+  ['complyadvantage', 'ComplyAdvantage'],
+  ['cookunity', 'CookUnity'],
+  ['corcepttherapeutics', 'Corcept Therapeutics'],
+  ['coreweave', 'CoreWeave'],
+  ['denver', 'Animal Health Care Denver'],
+  ['digicert', 'DigiCert'],
+  ['diligent', 'Diligent Services'],
+  ['diligentrobotics', 'Diligent Robotics'],
+  ['dillards', 'Dillard\'s'],
+  ['dominodatalab', 'Domino Data Lab'],
+  ['elementbiosciences', 'Element Biosciences'],
+  ['emergentlabsinc', 'Emergent Labs'],
+  ['equityzen', 'EquityZen'],
+  ['ess', 'cBEYONData + SMX'],
+  ['exoduspoint', 'ExodusPoint'],
+  ['flagshippioneeringinc', 'Flagship Pioneering'],
+  ['forgeglobal', 'Forge Global'],
+  ['founders', 'Founders Green Animal Hospital'],
+  ['garnerhealth', 'Garner Health'],
+  ['generalatlantic', 'General Atlantic'],
+  ['godaddy', 'GoDaddy'],
+  ['grafanalabs', 'Grafana Labs'],
+  ['hawkeye360', 'HawkEye 360'],
+  ['hazel', 'Hazel Health'],
+  ['help', 'HELP'],
+  ['homechef', 'Home Chef'],
+  ['homelight', 'HomeLight'],
+  ['indiesemiconductor', 'indie'],
+  ['intercom', 'Fin'],
+  ['iovancebiotherapeutics', 'Iovance Biotherapeutics'],
+  ['janestreet', 'Jane Street'],
+  ['jfrog', 'JFrog'],
+  ['keepersecurity', 'Keeper Security'],
+  ['kuraoncology', 'Kura Oncology'],
+  ['lastpass', 'LastPass'],
+  ['lgelectronics', 'LG Electronics'],
+  ['locusrobotics', 'Locus Robotics'],
+  ['luminishealth', 'Luminis Health'],
+  ['mangroup', 'Man Group'],
+  ['mcafee', 'McAfee'],
+  ['misfitsmarket', 'Misfits Market'],
+  ['modernhealth', 'Modern Health'],
+  ['myfitnesspal', 'MyFitnessPal'],
+  ['national', 'NATIONAL'],
+  ['newrelic', 'New Relic'],
+  ['northside', 'Northside Veterinary Clinic'],
+  ['nozominetworks', 'Nozomi Networks'],
+  ['octopusdeploy', 'Octopus Deploy'],
+  ['ohio', 'OH.io'],
+  ['oldmissioncapital', 'Old Mission'],
+  ['olema', 'Olema Oncology'],
+  ['onemedical', 'One Medical'],
+  ['onetrust', 'OneTrust'],
+  ['onrunning', 'On'],
+  ['opentable', 'OpenTable'],
+  ['orca', 'ORCA Service Technologies'],
+  ['orcasecurity', 'Orca Security'],
+  ['oscar', 'Oscar Health'],
+  ['oura', 'Ōura'],
+  ['pagerduty', 'PagerDuty'],
+  ['parkland', 'Parkland Animal Clinic'],
+  ['pathrobotics', 'Path Robotics'],
+  ['pingidentity', 'Ping Identity'],
+  ['pivotbio', 'Pivot Bio'],
+  ['planetscale', 'PlanetScale'],
+  ['platformsh', 'Platform.sh'],
+  ['primerai', 'Primer AI'],
+  ['propublica', 'ProPublica'],
+  ['psiquantum', 'PsiQuantum'],
+  ['pubmatic', 'PubMatic'],
+  ['purestorage', 'Everpure'],
+  ['quberesearchandtechnologies', 'Qube Research & Technologies'],
+  ['recordedfuture', 'Recorded Future'],
+  ['redwoodmaterials', 'Redwood Materials'],
+  ['relativity', 'Relativity Space'],
+  ['relaytherapeutics', 'Relay Therapeutics'],
+  ['revolutionmedicines', 'Revolution Medicines'],
+  ['rockstargames', 'Rockstar Games'],
+  ['saltsecurity', 'Salt Security'],
+  ['sambanovasystems', 'SambaNova'],
+  ['ses', 'SES Construction'],
+  ['sesai', 'SES'],
+  ['silananotechnologies', 'Sila'],
+  ['simplisafe', 'SimpliSafe'],
+  ['singlestore', 'SingleStore'],
+  ['singulargenomics', 'Singular Genomics'],
+  ['slideinsurance', 'Slide Insurance'],
+  ['smartrent', 'SmartRent'],
+  ['solidpower', 'Solid Power'],
+  ['sonyinteractiveentertainmentglobal', 'PlayStation'],
+  ['strandtherapeutics', 'Strand Therapeutics'],
+  ['streamnative', 'StreamNative'],
+  ['sumologic', 'Sumo Logic'],
+  ['tesseratherapeutics', 'Tessera Therapeutics'],
+  ['thenewyorktimes', 'The New York Times'],
+  ['thrive', 'THRIVE'],
+  ['thrivemarket', 'Thrive Market'],
+  ['togetherai', 'Together AI'],
+  ['transmitsecurity', 'Transmit Security'],
+  ['twistbioscience', 'Twist Bioscience'],
+  ['twochairs', 'Two Chairs'],
+  ['ultimagenomics', 'Ultima Genomics'],
+  ['ursamajor', 'Ursa Major'],
+  ['vannevarlabs', 'Vannevar'],
+  ['vardaspace', 'Varda Space'],
+  ['vikingglobalinvestors', 'Viking Global Investors'],
+  ['vitalfarms', 'Vital Farms'],
+  ['vorbiopharma', 'Vor Bio'],
+  ['wikimedia', 'Wikimedia Foundation'],
+  ['zoominfo', 'ZoomInfo'],
+];
+
+const LEVER_NAMED: [token: string, label: string][] = [
+  ['ambirobotics', 'Ambi Robotics'],
+  ['anchorage', 'Anchorage Digital'],
+  ['angellist', 'AngelList'],
+  ['atomcomputing', 'Atom Computing'],
+  ['belvederetrading', 'Belvedere Trading'],
+  ['blablacar', 'BlaBlaCar'],
+  ['brightmachines', 'Bright Machines'],
+  ['brooksrunning', 'Brooks Running'],
+  ['ekohealth', 'Eko Health'],
+  ['elfbeauty', 'e.l.f. Beauty'],
+  ['extremenetworks', 'Extreme Networks'],
+  ['fatetherapeutics', 'Fate Therapeutics'],
+  ['finn', 'FINN'],
+  ['includedhealth', 'Included Health'],
+  ['jamcity', 'Jam City'],
+  ['justwatch', 'JustWatch'],
+  ['loftorbital', 'Loft Orbital'],
+  ['logrocket', 'LogRocket'],
+  ['lyrahealth', 'Lyra Health'],
+  ['octoenergy', 'Octopus Energy'],
+  ['picklerobot', 'Pickle Robot'],
+  ['quantummetric', 'Quantum Metric'],
+  ['rai', 'RAI Institute'],
+  ['rigetti', 'Rigetti Computing'],
+  ['scholarrock', 'Scholar Rock'],
+  ['shieldai', 'Shield AI'],
+  ['trustarc', 'TrustArc'],
+  ['velo3d', 'Velo3D'],
+  ['vestiairecollective', 'Vestiaire Collective'],
+];
+
+const ASHBY_NAMED: [token: string, label: string][] = [
+  ['1password', '1Password'],
+  ['applied', 'Applied Intuition'],
+  ['arkoselabs', 'Arkose Labs'],
+  ['backmarket', 'Back Market'],
+  ['cerebras', 'Cerebras Systems'],
+  ['clickup', 'ClickUp'],
+  ['fireworks', 'Fireworks AI'],
+  ['formenergy', 'Form Energy'],
+  ['frontcareers', 'Front'],
+  ['fullstory', 'FullStory'],
+  ['graymatter-robotics', 'GrayMatter Robotics'],
+  ['hims-and-hers', 'Hims & Hers'],
+  ['human', 'HUMAN Security'],
+  ['iceye', 'ICEYE'],
+  ['kin', 'Kin Insurance'],
+  ['lancedb', 'LanceDB'],
+  ['livekit', 'LiveKit'],
+  ['materialsecurity', 'Material Security'],
+  ['menlosecurity', 'Menlo Security'],
+  ['moderntreasury', 'Modern Treasury'],
+  ['nightfall-ai', 'Nightfall AI'],
+  ['NorthwoodSpace', 'Northwood Space'],
+  ['opusclip', 'OpusClip'],
+  ['phoebe-work', 'Phoebe'],
+  ['reframesystems', 'Reframe Systems'],
+  ['rothys', 'Rothy\'s'],
+  ['serverobotics', 'Serve Robotics'],
+  ['shield-ai', 'Shield AI'],
+  ['sondermind', 'SonderMind'],
+  ['spoton', 'SpotOn'],
+  ['trm-labs', 'TRM Labs'],
+  ['uniswap', 'Uniswap Labs'],
+  ['voleon', 'Voleon Group'],
+  ['workos', 'WorkOS'],
+  ['ycombinator', 'Y Combinator'],
+];
+
+const WORKABLE_NAMED: [token: string, label: string][] = [
+  ['akeno', 'akeno'],
+  ['imachines', 'Intuition Machines'],
+  ['securityriskadvisors', 'Security Risk Advisors'],
+];
+
+const SMARTRECRUITERS_NAMED: [token: string, label: string][] = [
+  ['AristaNetworks', 'Arista Networks'],
+];
+
+/**
+ * The mid-market providers, which reach the employers the big-ATS adapters
+ * never touch: European small and mid-size companies, labs, agencies, clinics
+ * and the regional employers that hire more interns than they advertise.
+ */
+
+const PERSONIO: [token: string, label: string][] = [
+  ['autarcenergy', 'autarc'],
+  ['edgeless-systems', 'Edgeless Systems'],
+  ['exactag', 'Exactag'],
+  ['m4c', 'Media4Care'],
+  ['merantix', 'Merantix'],
+  ['mercanis', 'Mercanis'],
+  ['twaice', 'TWAICE Technologies'],
+];
+
+const RECRUITEE: [token: string, label: string][] = [
+  ['accenture', 'Accenture'],
+  ['arcus', 'ARCUS Planung + Beratung Bauplanungsgesellschaft mbH'],
+  ['attendi', 'Attendi'],
+  ['bloom', 'BLOOM'],
+  ['bright', 'BRIGHT Operations GmbH'],
+  ['draeger', 'Draeger'],
+  ['dunkin', 'Dunkin'],
+  ['gong', 'Gong'],
+  ['ifit', 'iFIT'],
+  ['jump', 'Jump'],
+  ['nikon', 'Nikon'],
+  ['nimble', 'Nimble'],
+  ['ppg', 'ppg'],
+  ['prisma', 'Prisma'],
+  ['radix', 'Superlinear'],
+  ['spring', 'SPRiNG'],
+  ['sri', 'SRI Rechtsanwaltsgesellschaft mbH'],
+  ['stevemadden', 'Steve Madden'],
+  ['teleperformance', 'Teleperformance'],
+  ['upgrade', 'Upgrade'],
+  ['upside', 'Upside'],
+];
+
+const TEAMTAILOR: [token: string, label: string][] = [
+  ['air', 'AIR'],
+  ['black', 'Eventus'],
+  ['clue', 'Clue'],
+  ['color', 'Almat Srl'],
+  ['electrify', 'Electrify'],
+  ['endeavor', 'Endeavor'],
+  ['ethos', 'Ethos'],
+  ['firefly', 'Firefly'],
+  ['five', 'fiver'],
+  ['headway', 'Headway'],
+  ['hudson', 'Hudson Nordic'],
+  ['loft', 'Loft'],
+  ['meilisearch', 'Meilisearch'],
+  ['mks', 'MKS PAMP'],
+  ['monster', 'Monster'],
+  ['naturalcycles', 'Natural Cycles'],
+  ['next', 'Novati'],
+  ['nidec', 'Nidec'],
+  ['oatly', 'Oatly'],
+  ['polestar', 'Polestar'],
+  ['revolution', 'REV'],
+  ['righthand', 'RightHand'],
+  ['root', 'Root Platform'],
+  ['sonder', 'Sonder'],
+  ['spacelift', 'Spacelift'],
+  ['starship', 'Starship Technologies'],
+  ['thales', 'Thales Norway'],
+  ['thrive', 'Thrive'],
+  ['toyota', 'Toyota'],
+  ['two', 'Two'],
+  ['veo', 'Veo'],
+  ['virtasant', 'Virtasant'],
+];
+
+const PINPOINT: [token: string, label: string][] = [
+  ['safetywing', 'SafetyWing'],
+];
+
+const JOBSCORE: [token: string, label: string][] = [
+  ['directdefense', 'DirectDefense'],
+  ['hexagonmininginc', 'Hexagon Mining, Inc.'],
+];
+
+const UKG: [token: string, label: string][] = [
+  ['recruiting.ultipro.com/AIS1000AISI/b22b728d-47a6-4550-9005-01c83b9a527f', 'a.i. solutions'],
+  ['recruiting.ultipro.com/PHI1008PMINC/2bfae9ff-dc34-4867-b871-a579eae69b54', 'Cofense'],
+  ['recruiting2.ultipro.com/ARU1000ARUP/62cc791d-612e-42e6-909f-0de27efe2038', 'ARUP Laboratories'],
+  ['recruiting2.ultipro.com/HOU1000/e68ddd55-8f58-ba9d-0b3a-76742aed1055', 'Houston Astros'],
+  ['recruiting2.ultipro.com/MIL1017/f54234e9-dfde-b183-fd20-4fbdb19cba7a', 'Milliman'],
+];
+
 /** Providers whose tokens already carry the employer name, as token/label pairs. */
 const PAIRED: [kind: BoardKind, boards: [token: string, label: string][]][] = [
   ['workday', WORKDAY],
@@ -434,6 +865,17 @@ const PAIRED: [kind: BoardKind, boards: [token: string, label: string][]][] = [
   ['rippling', RIPPLING],
   ['bamboohr', BAMBOOHR],
   ['breezy', BREEZY],
+  ['greenhouse', GREENHOUSE_NAMED],
+  ['lever', LEVER_NAMED],
+  ['ashby', ASHBY_NAMED],
+  ['workable', WORKABLE_NAMED],
+  ['smartrecruiters', SMARTRECRUITERS_NAMED],
+  ['personio', PERSONIO],
+  ['recruitee', RECRUITEE],
+  ['teamtailor', TEAMTAILOR],
+  ['pinpoint', PINPOINT],
+  ['jobscore', JOBSCORE],
+  ['ukg', UKG],
 ];
 
 export const SEED_BOARDS: SeedBoard[] = [
@@ -450,6 +892,7 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'github', token: 'simplify-summer', label: 'GitHub · SimplifyJobs Summer 2026' },
   { kind: 'github', token: 'vansh-summer', label: 'GitHub · vanshb03 Summer 2026' },
   { kind: 'github', token: 'simplify-newgrad', label: 'GitHub · SimplifyJobs New Grad' },
+  { kind: 'github', token: 'cvrve-newgrad', label: 'GitHub · cvrve New Grad' },
   { kind: 'amazon', token: '-', label: 'Amazon' },
   { kind: 'muse', token: '-', label: 'The Muse (healthcare, science, education)' },
   { kind: 'orise', token: '-', label: 'ORISE · federal research participation' },
@@ -457,6 +900,9 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'remoteok', token: '-', label: 'RemoteOK' },
   { kind: 'arbeitnow', token: '-', label: 'Arbeitnow (Europe)' },
   { kind: 'jobicy', token: '-', label: 'Jobicy (remote)' },
+  // Read for employer links rather than listings: see sources/community.ts.
+  { kind: 'hackernews', token: '-', label: 'Hacker News · who is hiring' },
+  { kind: 'reddit', token: '-', label: 'Reddit · student and career subreddits' },
 ];
 
 /**
@@ -538,6 +984,39 @@ export function boardFromUrl(url: string): SeedBoard | null {
     return { kind: 'phenom', token: phenom, label: label(phenom.split('.')[1] ?? phenom) };
   }
 
+  if (host.endsWith('.recruitee.com')) {
+    const token = host.split('.')[0];
+    return /^[a-z0-9][a-z0-9-]{1,40}$/.test(token)
+      ? { kind: 'recruitee', token, label: label(token) }
+      : null;
+  }
+  if (host.endsWith('.teamtailor.com')) {
+    // Regional boards insert a country segment: acme.na.teamtailor.com.
+    const token = host.split('.')[0];
+    return /^[a-z0-9][a-z0-9-]{1,40}$/.test(token)
+      ? { kind: 'teamtailor', token, label: label(token) }
+      : null;
+  }
+  if (host.endsWith('.pinpointhq.com')) {
+    const token = host.split('.')[0];
+    return /^[a-z0-9][a-z0-9-]{1,40}$/.test(token)
+      ? { kind: 'pinpoint', token, label: label(token) }
+      : null;
+  }
+  if (host === 'careers.jobscore.com') {
+    // careers.jobscore.com/careers/<token>/jobs/...
+    const token = segments[0] === 'careers' ? take(1) : take(0);
+    return token ? { kind: 'jobscore', token, label: label(token) } : null;
+  }
+
+  // UKG boards are keyed by a customer code and a board GUID, both of which
+  // only ever appear in a link someone published, so recognizing them here is
+  // the only way this provider is ever reached.
+  const ukg = ukgBoardFromUrl(host, segments);
+  if (ukg) {
+    return { kind: 'ukg', token: encodeUkgToken(ukg), label: label(ukg.code) };
+  }
+
   if (host === 'ats.rippling.com') {
     // ats.rippling.com/<board>/jobs/<uuid>
     const token = take(0);
@@ -584,6 +1063,8 @@ export function fallbackLabel(board: SeedBoard): string {
       return board.token;
     case 'rippling':
       return label(board.token.replace(/-(jobs|careers)$/, ''));
+    case 'ukg':
+      return label(board.token.split('/')[1] ?? board.token);
     default:
       return label(board.token);
   }

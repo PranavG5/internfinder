@@ -15,6 +15,13 @@ import { fetchEightfold } from '../src/lib/sources/eightfold';
 import { fetchOracle } from '../src/lib/sources/oracle';
 import { fetchPhenom } from '../src/lib/sources/phenom';
 import { fetchWorkday } from '../src/lib/sources/workday';
+import {
+  fetchJobScore,
+  fetchPinpoint,
+  fetchRecruitee,
+  fetchTeamtailor,
+  fetchUkg,
+} from '../src/lib/sources/midmarket';
 import { mapPool } from '../src/lib/sources/http';
 
 async function fetchCount(kind: string, token: string, label: string): Promise<number> {
@@ -45,6 +52,16 @@ async function fetchCount(kind: string, token: string, label: string): Promise<n
       return (await fetchBreezy(token, label)).length;
     case 'personio':
       return (await fetchPersonio(token, label)).length;
+    case 'recruitee':
+      return (await fetchRecruitee(token, label)).length;
+    case 'teamtailor':
+      return (await fetchTeamtailor(token, label)).length;
+    case 'pinpoint':
+      return (await fetchPinpoint(token, label)).length;
+    case 'jobscore':
+      return (await fetchJobScore(token, label)).length;
+    case 'ukg':
+      return (await fetchUkg(token, label)).length;
     default:
       throw new Error(`unknown kind ${kind}`);
   }

@@ -15,6 +15,14 @@ import { fetchPhenom } from './sources/phenom';
 import { fetchWorkday } from './sources/workday';
 import { fetchOrise, fetchUsaJobs } from './sources/research';
 import {
+  fetchJobScore,
+  fetchPinpoint,
+  fetchRecruitee,
+  fetchTeamtailor,
+  fetchUkg,
+} from './sources/midmarket';
+import { fetchHackerNewsLinks, fetchRedditLinks, type DiscoveredLink } from './sources/community';
+import {
   fetchArbeitnow,
   fetchGithubList,
   fetchJobicy,
@@ -163,10 +171,40 @@ const BOARD_KINDS = new Set([
   'bamboohr',
   'breezy',
   'personio',
+  'recruitee',
+  'teamtailor',
+  'pinpoint',
+  'jobscore',
+  'ukg',
 ]);
 
 function isBoardKind(kind: string): boolean {
   return BOARD_KINDS.has(kind);
+}
+
+/**
+ * Sources read for employer links rather than for listings.
+ *
+ * They are the answer to "who started hiring this week that nobody indexes
+ * yet": the boards they reveal are crawled directly on the following run, so a
+ * company that only announced itself in a forum still ends up in the catalog
+ * with its openness verified against its own board.
+ */
+const LINK_KINDS = new Set(['hackernews', 'reddit']);
+
+function isLinkKind(kind: string): boolean {
+  return LINK_KINDS.has(kind);
+}
+
+function fetchLinks(kind: string): Promise<DiscoveredLink[]> {
+  switch (kind) {
+    case 'hackernews':
+      return fetchHackerNewsLinks();
+    case 'reddit':
+      return fetchRedditLinks();
+    default:
+      throw new Error(`Unknown link source kind: ${kind}`);
+  }
 }
 
 async function fetchSource(row: SourceRow): Promise<RawListing[]> {
@@ -197,6 +235,16 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchBreezy(row.token, row.label);
     case 'personio':
       return fetchPersonio(row.token, row.label);
+    case 'recruitee':
+      return fetchRecruitee(row.token, row.label);
+    case 'teamtailor':
+      return fetchTeamtailor(row.token, row.label);
+    case 'pinpoint':
+      return fetchPinpoint(row.token, row.label);
+    case 'jobscore':
+      return fetchJobScore(row.token, row.label);
+    case 'ukg':
+      return fetchUkg(row.token, row.label);
     case 'amazon':
       return fetchAmazon();
     case 'muse':
@@ -249,6 +297,31 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
     const startMs = Date.now();
     const sourceKey = `${row.kind}:${row.token}`;
     try {
+      // Community channels contribute leads, not listings: the post that names
+      // an opening is written by a student, not the employer, so the URL is
+      // taken and the claim is not. Discovery turns it into a board, and the
+      // role only enters the catalog once the employer's own board serves it.
+      if (isLinkKind(row.kind)) {
+        const links = await fetchLinks(row.kind);
+        seenUrls.push(...links);
+        await exec(
+          'UPDATE source_configs SET last_sync_at = ?, last_count = ?, last_error = NULL WHERE id = ?',
+          [nowSec(), links.length, row.id],
+        );
+        outcomes.push({
+          source: sourceKey,
+          kind: row.kind,
+          token: row.token,
+          label: row.label,
+          ok: true,
+          fetched: links.length,
+          internships: 0,
+          ms: Date.now() - startMs,
+        });
+        log(`  ${row.label}: ${links.length} employer links to check for job boards`);
+        return;
+      }
+
       const raw = await fetchSource(row);
       const listings: NormalizedListing[] = [];
       for (const item of raw) {
