@@ -38,6 +38,15 @@ const STALE_POSTED_DAYS = 150;
  * that began three months ago.
  */
 const TERM_PASSED_DAYS = 90;
+/**
+ * How long a closed listing that no source carries any more is kept before it
+ * is deleted. The database lives on a size-capped plan, and closed rows were
+ * outgrowing open ones. A listing still on a board keeps getting last_seen_at
+ * bumped, so it is never deleted only to be re-inserted on the next run.
+ */
+const PRUNE_CLOSED_DAYS = 30;
+/** Sync run history kept for the status pages. */
+const KEEP_SYNC_RUNS_DAYS = 30;
 
 export interface SourceRow {
   id: number;
@@ -325,6 +334,8 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
 
   // ---- Lifecycle sweep + dedupe. ----
   const expired = await sweepLifecycle();
+  const pruned = await pruneCatalog();
+  if (pruned > 0) log(`Pruned ${pruned} long-closed listing(s).`);
   const duplicates = await markDuplicates();
 
   // ---- Learn about new employers from the URLs we just saw. ----
@@ -626,6 +637,36 @@ export async function sweepLifecycle(): Promise<number> {
   );
 
   return count;
+}
+
+/**
+ * Keep the catalog inside the database's size budget.
+ *
+ * Closed listings drop their description, and with it most of the generated
+ * search vector, which together are the bulk of the table. An upsert restores
+ * the description if the listing ever reopens, since it is coalesced on update.
+ * Listings closed and unseen for PRUNE_CLOSED_DAYS are deleted outright unless
+ * a user has tied them to an application, bookmark, or hide.
+ */
+export async function pruneCatalog(): Promise<number> {
+  const now = nowSec();
+
+  await exec(
+    'UPDATE internships SET description = NULL WHERE is_open = 0 AND description IS NOT NULL',
+  );
+
+  const pruned = await exec(
+    `DELETE FROM internships i
+     WHERE i.is_open = 0 AND i.last_seen_at < ?
+       AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.internship_id = i.id)
+       AND NOT EXISTS (SELECT 1 FROM bookmarks b WHERE b.internship_id = i.id)
+       AND NOT EXISTS (SELECT 1 FROM hidden_listings h WHERE h.internship_id = i.id)`,
+    [now - PRUNE_CLOSED_DAYS * DAY],
+  );
+
+  await exec('DELETE FROM sync_runs WHERE started_at < ?', [now - KEEP_SYNC_RUNS_DAYS * DAY]);
+
+  return pruned;
 }
 
 /**
