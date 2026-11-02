@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { withAuthTimeout } from '@/lib/supabase/timeout';
 
 /**
  * Paths reachable without a signed-in session.
@@ -63,10 +64,19 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Triggers the refresh when the access token has expired.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Triggers the refresh when the access token has expired. Capped, because a
+  // failing Auth server makes supabase-js retry for longer than middleware may
+  // run, and a hung middleware is a 504 on every page of the site.
+  let user;
+  try {
+    ({
+      data: { user },
+    } = await withAuthTimeout(supabase.auth.getUser()));
+  } catch (error) {
+    console.error('[middleware] session check failed:', error);
+    if (isPublic(pathname)) return response;
+    return unavailable(pathname);
+  }
 
   if (!user && !isPublic(pathname)) return deny(request, pathname, search);
 
@@ -81,6 +91,24 @@ function deny(request: NextRequest, pathname: string, search: string) {
   const login = new URL('/login', request.url);
   login.searchParams.set('next', `${pathname}${search}`);
   return NextResponse.redirect(login);
+}
+
+/**
+ * Supabase Auth could not be reached, so we can't tell whether this visitor is
+ * signed in. Say so plainly instead of bouncing a signed-in user to /login,
+ * where signing in would fail for the same reason.
+ */
+function unavailable(pathname: string) {
+  const message = 'InternIndex is having trouble reaching its sign-in service. Please try again in a minute.';
+  const headers = { 'Retry-After': '60', 'Cache-Control': 'no-store' };
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: message }, { status: 503, headers });
+  }
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Temporarily unavailable</title></head><body style="font-family:system-ui,sans-serif;max-width:32rem;margin:20vh auto;padding:0 1rem;line-height:1.5"><h1 style="font-size:1.25rem">Temporarily unavailable</h1><p>${message}</p><p><a href="">Reload</a></p></body></html>`;
+  return new NextResponse(html, {
+    status: 503,
+    headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' },
+  });
 }
 
 export const config = {

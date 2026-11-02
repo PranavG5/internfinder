@@ -1,4 +1,5 @@
 import { createSupabaseServer } from './supabase/server';
+import { withAuthTimeout } from './supabase/timeout';
 
 export interface AuthUser {
   id: string;
@@ -16,7 +17,7 @@ export async function getAuthUser(): Promise<AuthUser | null> {
   const supabase = await createSupabaseServer();
   if (!supabase) return null;
   try {
-    const { data, error } = await supabase.auth.getUser();
+    const { data, error } = await withAuthTimeout(supabase.auth.getUser());
     if (error || !data.user) return null;
     return { id: data.user.id, email: data.user.email ?? null };
   } catch {

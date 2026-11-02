@@ -38,6 +38,12 @@ const STALE_POSTED_DAYS = 150;
  * that began three months ago.
  */
 const TERM_PASSED_DAYS = 90;
+/**
+ * How long a closed listing is kept before it is deleted. Closed rows are never
+ * shown in search, and keeping them forever grew the catalog past the hosting
+ * plan's database quota, which made the database read-only and broke sign-in.
+ */
+const CLOSED_RETENTION_DAYS = 30;
 
 export interface SourceRow {
   id: number;
@@ -625,7 +631,24 @@ export async function sweepLifecycle(): Promise<number> {
     [now, now - TERM_PASSED_DAYS * DAY],
   );
 
+  await pruneClosed(now);
   return count;
+}
+
+/**
+ * Delete listings that have been closed for a while, so the table holds roughly
+ * what is open instead of everything ever seen. A row someone applied to,
+ * bookmarked, or hid is kept: their tracker still links to it.
+ */
+async function pruneClosed(now: number): Promise<number> {
+  return exec(
+    `DELETE FROM internships i
+     WHERE i.is_open = 0 AND i.closed_at IS NOT NULL AND i.closed_at < ?
+       AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.internship_id = i.id)
+       AND NOT EXISTS (SELECT 1 FROM bookmarks b WHERE b.internship_id = i.id)
+       AND NOT EXISTS (SELECT 1 FROM hidden_listings h WHERE h.internship_id = i.id)`,
+    [now - CLOSED_RETENTION_DAYS * DAY],
+  );
 }
 
 /**
