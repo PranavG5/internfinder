@@ -702,14 +702,25 @@ export async function sweepLifecycle(): Promise<number> {
  * what is open instead of everything ever seen. A row someone applied to,
  * bookmarked, or hid is kept: their tracker still links to it.
  */
+/**
+ * Database size past which closed listings are deleted at once instead of
+ * after CLOSED_RETENTION_DAYS. Supabase's free plan turns the database
+ * read-only at 500 MB, which takes sign-in and the whole site down with it, so
+ * near the cap the archive of closed roles gives way to the live catalog.
+ */
+const DB_SOFT_LIMIT_MB = Number(process.env.DB_SOFT_LIMIT_MB) || 440;
+
 async function pruneClosed(now: number): Promise<number> {
+  const size = await one<{ bytes: string }>('SELECT pg_database_size(current_database())::text AS bytes');
+  const tight = Number(size?.bytes ?? 0) > DB_SOFT_LIMIT_MB * 1024 * 1024;
+  const retentionDays = tight ? 0 : CLOSED_RETENTION_DAYS;
   return exec(
     `DELETE FROM internships i
      WHERE i.is_open = 0 AND i.closed_at IS NOT NULL AND i.closed_at < ?
        AND NOT EXISTS (SELECT 1 FROM applications a WHERE a.internship_id = i.id)
        AND NOT EXISTS (SELECT 1 FROM bookmarks b WHERE b.internship_id = i.id)
        AND NOT EXISTS (SELECT 1 FROM hidden_listings h WHERE h.internship_id = i.id)`,
-    [now - CLOSED_RETENTION_DAYS * DAY],
+    [now - retentionDays * DAY],
   );
 }
 
@@ -719,14 +730,12 @@ async function pruneClosed(now: number): Promise<number> {
  * then the most recently posted copy.
  */
 export async function markDuplicates(): Promise<number> {
-  // Reset first so a previously-hidden row can be promoted when the winner closes.
-  await exec('UPDATE internships SET duplicate_of = NULL WHERE is_open = 1');
-  await exec(
-    `UPDATE internships SET duplicate_of = NULL
-     WHERE duplicate_of IS NOT NULL AND is_open = 1
-       AND duplicate_of NOT IN (SELECT id FROM internships WHERE is_open = 1)`,
-  );
-
+  // Only rows whose duplicate link actually changes are written. Every write
+  // re-indexes the whole row for full-text search (the index is built from
+  // the title and full description), so the old "clear every open row, then
+  // re-mark" approach rewrote ~36,000 rows a run, ran past the statement
+  // timeout and failed the scheduled sync, and left as many dead tuples
+  // behind on a database already near its size cap.
   const rows = await q<{
     id: string;
     dedupe_key: string;
@@ -770,14 +779,20 @@ export async function markDuplicates(): Promise<number> {
     for (const loser of group.slice(1)) pairs.push({ id: loser.id, winner: winner.id });
   }
 
-  if (pairs.length === 0) return 0;
+  // Release open rows that are no longer anyone's duplicate, e.g. because the
+  // winner closed, so they can represent the role again.
+  await exec(
+    `UPDATE internships SET duplicate_of = NULL
+     WHERE is_open = 1 AND duplicate_of IS NOT NULL AND NOT (id = ANY(?::text[]))`,
+    [pairs.map((p) => p.id)],
+  );
 
   for (let i = 0; i < pairs.length; i += 2000) {
     const chunk = pairs.slice(i, i + 2000);
     await exec(
       `UPDATE internships i SET duplicate_of = m.winner
        FROM jsonb_to_recordset(?::jsonb) AS m(id text, winner text)
-       WHERE i.id = m.id`,
+       WHERE i.id = m.id AND i.duplicate_of IS DISTINCT FROM m.winner`,
       [JSON.stringify(chunk)],
     );
   }

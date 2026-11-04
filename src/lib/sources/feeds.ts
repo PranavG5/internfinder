@@ -257,6 +257,15 @@ const MUSE_MAX_PAGES = 99;
  */
 const MUSE_BUDGET = process.env.MUSE_API_KEY ? 3000 : 450;
 
+/**
+ * Muse keeps internships listed long after they were posted, and about two
+ * thirds of its catalog is older than the lifecycle sweep's 150-day "posted
+ * long ago, never updated" cutoff (Muse never reports an update date). Those
+ * would be written only to be closed in the same run and then kept for a
+ * month, which on a 500 MB database is space the live catalog needs.
+ */
+const MUSE_MAX_AGE_DAYS = 150;
+
 export async function fetchMuse(opts: { budget?: number } = {}): Promise<RawListing[]> {
   const budget = Math.min(opts.budget ?? MUSE_BUDGET, MUSE_BUDGET);
   const found = new Map<number, MuseJob>();
@@ -310,7 +319,9 @@ export async function fetchMuse(opts: { budget?: number } = {}): Promise<RawList
     truncated = true;
   }
 
+  const oldest = Date.now() - MUSE_MAX_AGE_DAYS * 86_400_000;
   const listings = [...found.values()]
+    .filter((job) => !job.publication_date || Date.parse(job.publication_date) >= oldest)
     .map((job): RawListing => ({
       source: 'muse',
       sourceKind: 'aggregator',
