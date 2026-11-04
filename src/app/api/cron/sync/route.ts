@@ -21,7 +21,7 @@ export const GET = handler(async (request: Request) => {
     return fail('Unauthorized', 401);
   }
 
-  const result = await runSync({ maxBoards: 25, trigger: 'vercel-cron' });
+  const result = await runSync({ maxBoards: 25, light: true, trigger: 'vercel-cron' });
   const expired = await sweepLifecycle();
   const verified = await verifyLinks(60, { concurrency: 8 });
 

@@ -17,7 +17,8 @@ export type BoardKind =
   | 'rippling'
   | 'bamboohr'
   | 'breezy'
-  | 'personio';
+  | 'personio'
+  | 'jibe';
 
 /** Per-employer board providers, in the order they matter for coverage. */
 export const BOARD_KINDS: BoardKind[] = [
@@ -34,6 +35,7 @@ export const BOARD_KINDS: BoardKind[] = [
   'bamboohr',
   'breezy',
   'personio',
+  'jibe',
 ];
 
 /** Cross-company feeds, which are configured once rather than per employer. */
@@ -66,6 +68,7 @@ export const KIND_LABELS: Record<string, string> = {
   bamboohr: 'BambooHR',
   breezy: 'Breezy',
   personio: 'Personio',
+  jibe: 'Jibe careers site (iCIMS)',
   github: 'Community lists',
   amazon: 'Amazon',
   muse: 'The Muse',
@@ -123,6 +126,7 @@ export type ProgramType = (typeof PROGRAM_TYPES)[number];
 export const FIELDS = [
   'Software Engineering',
   'Data & Analytics',
+  'Business Analytics',
   'AI & Machine Learning',
   'Hardware & Electrical',
   'Mechanical & Aerospace',
@@ -166,6 +170,9 @@ export const ROLE_FAMILIES = [
   'data-engineering',
   'data-science',
   'data-analyst',
+  'business-analyst',
+  'business-intelligence',
+  'business-analytics',
   'machine-learning',
   'research-scientist',
   'security',

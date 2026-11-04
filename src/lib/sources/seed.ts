@@ -279,6 +279,12 @@ const WORKDAY: [token: string, label: string][] = [
   ['georgetown.wd1.myworkdayjobs.com/georgetown/Georgetown_Admin_Careers', 'Georgetown University'],
   ['wustl.wd1.myworkdayjobs.com/wustl/External', 'Washington University in St. Louis'],
   ['umd.wd1.myworkdayjobs.com/umd/UMCP', 'University of Maryland'],
+  // Business analyst and analytics employers that no community list carried,
+  // found through their own careers pages. Each confirmed live when added.
+  ['ally.wd1.myworkdayjobs.com/ally/Ally', 'Ally Financial'],
+  ['genmills.wd1.myworkdayjobs.com/genmills/GMI_External_Careers', 'General Mills'],
+  ['diageo.wd3.myworkdayjobs.com/diageo/Diageo_Careers', 'Diageo'],
+  ['jbhunt.wd501.myworkdayjobs.com/jbhunt/Careers', 'J.B. Hunt'],
 ];
 const ORACLE: [token: string, label: string][] = [
   ['hdpc.fa.us2.oraclecloud.com/LateralHiring', 'Goldman Sachs'],
@@ -350,6 +356,10 @@ const ORACLE: [token: string, label: string][] = [
   ['evac.fa.us2.oraclecloud.com/CX_1', 'Providence'],
   ['iazuqy.fa.ocs.oraclecloud.com/CX_1', 'UCSF'],
   ['fa-euwp-saasfaprod1.fa.ocs.oraclecloud.com/CX_1', 'Mayo Clinic'],
+  // Hospitality and retail, found through their careers pages.
+  ['ejwl.fa.us2.oraclecloud.com/MI_CS_1', 'Marriott International'],
+  ['efet.fa.us2.oraclecloud.com/CX_1', 'Hilton'],
+  ['ibxwjb.fa.ocs.oraclecloud.com/CX_1', 'Dollar General'],
 ];
 
 /**
@@ -384,6 +394,8 @@ const PHENOM: [token: string, label: string][] = [
   ['careers.zimmerbiomet.com', 'Zimmer Biomet'],
   ['jobs.thecignagroup.com', 'The Cigna Group'],
   ['careers.humana.com', 'Humana'],
+  // Learned from the employer's Muse posting pages.
+  ['jobs.bechtel.com', 'Bechtel'],
 ];
 const RIPPLING: [token: string, label: string][] = [
   ['rippling', 'Rippling'],
@@ -402,6 +414,25 @@ const BAMBOOHR: [token: string, label: string][] = [
 ];
 const BREEZY: [token: string, label: string][] = [
   ['vetsez', 'VetsEZ'],
+];
+
+/**
+ * Jibe careers sites (iCIMS Attract), as their careers host.
+ *
+ * iCIMS has no public jobs API, and it is where many of the insurers, consumer
+ * brands and consultancies that hire business analyst interns recruit. Their
+ * Jibe front ends serve one, so these are read through it.
+ */
+const JIBE: [token: string, label: string][] = [
+  ['www.pepsicojobs.com', 'PepsiCo'],
+  ['jobs.aon.com', 'Aon'],
+  ['jobs.statefarm.com', 'State Farm'],
+  ['jobs.ajg.com', 'Gallagher'],
+  ['jobs.zs.com', 'ZS Associates'],
+  ['careers.spglobal.com', 'S&P Global'],
+  ['careers.ulta.com', 'Ulta Beauty'],
+  ['careers.principal.com', 'Principal Financial Group'],
+  ['jobs.booking.com', 'Booking.com'],
 ];
 
 /**
@@ -434,6 +465,7 @@ const PAIRED: [kind: BoardKind, boards: [token: string, label: string][]][] = [
   ['rippling', RIPPLING],
   ['bamboohr', BAMBOOHR],
   ['breezy', BREEZY],
+  ['jibe', JIBE],
 ];
 
 export const SEED_BOARDS: SeedBoard[] = [
@@ -451,7 +483,7 @@ export const SEED_FEEDS: { kind: string; token: string; label: string }[] = [
   { kind: 'github', token: 'vansh-summer', label: 'GitHub · vanshb03 Summer 2026' },
   { kind: 'github', token: 'simplify-newgrad', label: 'GitHub · SimplifyJobs New Grad' },
   { kind: 'amazon', token: '-', label: 'Amazon' },
-  { kind: 'muse', token: '-', label: 'The Muse (healthcare, science, education)' },
+  { kind: 'muse', token: '-', label: 'The Muse (every internship category)' },
   { kind: 'orise', token: '-', label: 'ORISE · federal research participation' },
   { kind: 'usajobs', token: '-', label: 'USAJOBS · federal student openings' },
   { kind: 'remoteok', token: '-', label: 'RemoteOK' },
@@ -579,6 +611,7 @@ export function fallbackLabel(board: SeedBoard): string {
     case 'eightfold':
       return label((board.token.split('/')[0] ?? '').split('.')[0]);
     case 'phenom':
+    case 'jibe':
       return label(board.token.split('.')[1] ?? board.token);
     case 'smartrecruiters':
       return board.token;

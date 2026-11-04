@@ -6,7 +6,37 @@ interface Rule {
   strong: RegExp[];
   /** Supporting patterns; count less on their own. */
   weak?: RegExp[];
+  /**
+   * Points a strong pattern earns when it matches the title (default 6).
+   * Raised for families whose title phrase is decisive on its own: in
+   * "Marketing Analytics Intern" the head noun is "analytics", but the
+   * description is all campaigns and brand, and at equal weight that prose
+   * would pull the role into marketing.
+   */
+  titleWeight?: number;
+  /**
+   * The family's title phrases are compounds whose qualifier names another
+   * family: "Marketing Analytics", "Supply Chain Analytics", "People
+   * Analytics". When such a phrase matches the title, any other family whose
+   * only title hit lies inside it is dropped, body and all, because the
+   * marketing prose in a marketing analytics posting is context, not evidence
+   * that the role is marketing.
+   */
+  consumesQualifier?: boolean;
+  /**
+   * The family can only win when the title itself names it. Analytics
+   * vocabulary (dashboards, forecasting, insights, Power BI) runs through the
+   * descriptions of engineering, operations and R&D postings too, so for a
+   * filter people use to find analyst roles, prose alone is not enough.
+   */
+  needsTitle?: boolean;
 }
+
+// Business functions that an analytics or analyst title can be attached to.
+// Healthcare is left out on purpose: "Healthcare Analytics" stays with
+// health-admin so the premed taxonomy keeps its own administrative bucket.
+const BUSINESS_FUNCTION =
+  '(?:business|marketing|sales|pricing|revenue|commercial|customer|consumer|shopper|product|people|HR|workforce|talent|supply\\s+chain|operations|operational|procurement|sourcing|inventory|demand|merchandising|merchant|category|retail|e-?commerce|digital|web|growth|strategy|strategic|enterprise|financial|finance|fp&a|credit|risk|fraud|portfolio|claims|loyalty|CRM|media|advertising|insights|decision|channel|performance|network|sports|game)';
 
 /**
  * Ordered so that more specific families are evaluated first, so a
@@ -27,10 +57,67 @@ const RULES: Rule[] = [
     strong: [/\bdata\s+engineer/i, /\bETL\b/, /\bdata\s+(?:pipeline|platform|warehouse|infrastructure)\b/i, /\banalytics\s+engineer/i, /\bbig\s+data\b/i],
     weak: [/\bspark|airflow|dbt|snowflake|databricks\b/i],
   },
+  // ---- Business analytics. Declared ahead of the generic data analyst and
+  // every business function, so ties go to the analytics reading. ----
+  {
+    family: 'business-intelligence',
+    strong: [
+      /\bbusiness\s+intelligence\b/i,
+      /\bBI\s+(?:analyst|developer|engineer|intern|reporting|analytics|specialist|co-?op)\b/i,
+      // A skill list mentioning Power BI is boilerplate; a role named for it is not.
+      /\bpower\s*bi\s+(?:intern|developer|analyst|specialist|engineer|co-?op)/i,
+      /\btableau\s+(?:developer|analyst|intern|specialist)\b/i,
+      // Financial and regulatory reporting is accounting, science reporting is journalism.
+      /(?<!financial\s|regulatory\s|statutory\s|tax\s|science\s|news\s)\breporting\s+(?:analyst|intern|specialist|co-?op|(?:&|and)\s+analytics)\b/i,
+      /\b(?:analytics|insights|data)\s+(?:&|and)\s+reporting\b/i,
+      /\bdashboard(?:s|ing)?\s+(?:develop|analyst|intern|design)/i,
+      /\bdata\s+visuali[sz]ation\s+(?:intern|analyst|specialist|co-?op)/i,
+    ],
+    weak: [/\btableau\b|\bpower\s*bi\b|\blooker\b|\bqlik\b|\bcognos\b|\bmicrostrategy\b|\bsisense\b/i, /\bdashboards?\b/i],
+    titleWeight: 10,
+    consumesQualifier: true,
+    needsTitle: true,
+  },
+  {
+    family: 'business-analyst',
+    strong: [
+      /\bbusiness\s+(?:systems?\s+|process\s+|operations\s+|technology\s+|data\s+)?analy(?:st|sis)\b/i,
+      /\bBA\s+(?:[Ii]ntern|[Cc]o-?op)\b/,
+      /\bfunctional\s+analyst\b/i,
+      /\bprocess\s+(?:improvement\s+)?analyst\b/i,
+      /\brequirements\s+analyst\b/i,
+      /\bbusiness\s+architecture\b/i,
+    ],
+    weak: [/\brequirements\s+gathering\b/i, /\buser\s+stories\b/i, /\bprocess\s+(?:mapping|flows?)\b/i, /\bstakeholder\s+(?:requirements|interviews)\b/i, /\bgap\s+analysis\b/i],
+    titleWeight: 10,
+    consumesQualifier: true,
+    needsTitle: true,
+  },
+  {
+    family: 'business-analytics',
+    strong: [
+      new RegExp(`\\b${BUSINESS_FUNCTION}\\s+analytics\\b`, 'i'),
+      /\b(?:marketing|sales|pricing|revenue|commercial|product|growth|e-?commerce|merchandising|merchant|category|CRM|loyalty|insights?|decision|customer\s+insights|consumer\s+insights|market\s+research|web|digital)\s+analyst\b/i,
+      /\bdecision\s+scien/i,
+      /\b(?:consumer|customer|market|shopper|business|commercial)\s+insights\b/i,
+      /\binsights\s+(?:analyst|intern|co-?op|(?:&|and)\s+analytics)\b/i,
+      /\banalytics\s+(?:&|and)\s+(?:insights|strategy|decision)/i,
+      /\bstrategy\s+(?:&|and)\s+analytics\b/i,
+      /\banalytics\s+(?:consult|strateg)/i,
+      /\brevenue\s+management\b/i,
+      /\bbusiness\s+analytics\b/i,
+    ],
+    weak: [/\bgoogle\s+analytics\b|\badobe\s+analytics\b/i, /\bmarket\s+research\b/i, /\bcustomer\s+segmentation\b/i, /\bforecasting\b/i, /\bbusiness\s+insights?\b/i, /\bdata-driven\s+(?:decision|recommendation|insight)/i],
+    titleWeight: 10,
+    consumesQualifier: true,
+    needsTitle: true,
+  },
   {
     family: 'data-analyst',
-    strong: [/\bdata\s+analyst\b/i, /\bbusiness\s+(?:intelligence|analyst)\b/i, /\bBI\s+(?:analyst|developer)\b/i, /\breporting\s+analyst\b/i, /\banalytics\s+intern/i],
-    weak: [/\btableau|power\s*bi|looker\b/i],
+    strong: [/\bdata\s+analyst\b/i, /\banalytics\s+intern/i],
+    // A title that says "Data Analyst" is decisive, even when the description
+    // is full of dashboards and Power BI.
+    titleWeight: 10,
   },
   {
     family: 'security',
@@ -80,7 +167,8 @@ const RULES: Rule[] = [
   },
   {
     family: 'product-management',
-    strong: [/\bproduct\s+manage/i, /\bproduct\s+(?:owner|intern|analyst)\b/i, /\bAPM\b/, /\btechnical\s+program\s+manage/i, /\bprogram\s+manage/i, /\bproject\s+manage/i, /\bscrum\b/i],
+    // "Product Analyst" is an analytics role and lives in business-analytics.
+    strong: [/\bproduct\s+manage/i, /\bproduct\s+(?:owner|intern)\b/i, /\bAPM\b/, /\btechnical\s+program\s+manage/i, /\bprogram\s+manage/i, /\bproject\s+manage/i, /\bscrum\b/i],
   },
   {
     family: 'product-design',
@@ -267,6 +355,9 @@ const FAMILY_TO_FIELD: Record<string, Field> = {
   'data-engineering': 'Data & Analytics',
   'data-analyst': 'Data & Analytics',
   'data-science': 'Data & Analytics',
+  'business-analyst': 'Business Analytics',
+  'business-intelligence': 'Business Analytics',
+  'business-analytics': 'Business Analytics',
   'machine-learning': 'AI & Machine Learning',
   'research-scientist': 'Research & Academia',
   security: 'Cybersecurity',
@@ -315,6 +406,7 @@ const FAMILY_TO_FIELD: Record<string, Field> = {
 /** Hints some aggregators provide; map them straight to a field. */
 const CATEGORY_HINTS: { re: RegExp; field: Field; family: RoleFamily }[] = [
   { re: /^software\s*engineer/i, field: 'Software Engineering', family: 'swe-general' },
+  { re: /business\s*(?:analy|intelligence)/i, field: 'Business Analytics', family: 'business-analytics' },
   { re: /AI|ML|Data/i, field: 'Data & Analytics', family: 'data-analyst' },
   { re: /quant/i, field: 'Quantitative Finance', family: 'quant-research' },
   { re: /hardware/i, field: 'Hardware & Electrical', family: 'electrical' },
@@ -331,6 +423,12 @@ const CATEGORY_HINTS: { re: RegExp; field: Field; family: RoleFamily }[] = [
   { re: /health|medical/i, field: 'Healthcare & Life Sciences', family: 'health-admin' },
   { re: /life\s*science|biotech|pharma/i, field: 'Healthcare & Life Sciences', family: 'biotech' },
 ];
+
+/**
+ * Bump when the taxonomy or rules change in a way existing rows should pick
+ * up. `npm run reclassify` re-runs the catalog once per version.
+ */
+export const CLASSIFIER_VERSION = '2026-11-business-analytics';
 
 export interface FieldResult {
   field: Field;
@@ -350,15 +448,44 @@ export function classifyField(title: string, description = '', categoryHint = ''
   const bump = (family: RoleFamily, amount: number) =>
     scores.set(family, (scores.get(family) ?? 0) + amount);
 
+  // Title spans claimed by compound phrases like "Marketing Analytics".
+  const compounds: { family: RoleFamily; start: number; end: number }[] = [];
+  for (const rule of RULES) {
+    if (!rule.consumesQualifier) continue;
+    for (const re of rule.strong) {
+      const m = re.exec(t);
+      if (m) compounds.push({ family: rule.family, start: m.index, end: m.index + m[0].length });
+    }
+  }
+  const insideCompound = (family: RoleFamily, start: number, end: number) =>
+    compounds.some((c) => c.family !== family && c.start <= start && end <= c.end);
+
+  /** Families whose title hits all sat inside another family's compound. */
+  const consumed = new Set<RoleFamily>();
+  const freeTitleHit = new Set<RoleFamily>();
+  /** Families with any title match at all, strong or weak. */
+  const titleHit = new Set<RoleFamily>();
+
   for (const rule of RULES) {
     for (const re of rule.strong) {
-      if (re.test(t)) bump(rule.family, 6);
-      else if (re.test(body)) bump(rule.family, 2);
+      const m = re.exec(t);
+      if (m) {
+        titleHit.add(rule.family);
+        bump(rule.family, rule.titleWeight ?? 6);
+        if (insideCompound(rule.family, m.index, m.index + m[0].length)) consumed.add(rule.family);
+        else freeTitleHit.add(rule.family);
+      } else if (re.test(body)) bump(rule.family, 2);
     }
     for (const re of rule.weak ?? []) {
-      if (re.test(t)) bump(rule.family, 3);
-      else if (re.test(body)) bump(rule.family, 1);
+      if (re.test(t)) {
+        titleHit.add(rule.family);
+        bump(rule.family, 3);
+      } else if (re.test(body)) bump(rule.family, 1);
     }
+  }
+  for (const family of consumed) if (!freeTitleHit.has(family)) scores.delete(family);
+  for (const rule of RULES) {
+    if (rule.needsTitle && !titleHit.has(rule.family)) scores.delete(rule.family);
   }
 
   let best: RoleFamily = 'other';

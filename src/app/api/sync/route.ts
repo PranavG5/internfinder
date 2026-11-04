@@ -74,6 +74,9 @@ export const POST = handler(async (request: Request) => {
     maxBoards,
     trigger: isCronRequest(request) ? 'cron' : 'web',
     noDiscover: body.noDiscover === true,
+    // Serverless functions stop at maxDuration; the full Muse sweep is for
+    // the scheduled CLI sync.
+    light: true,
   });
 
   const verified = verifyCount > 0 ? await verifyLinks(verifyCount) : null;

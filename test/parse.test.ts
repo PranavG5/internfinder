@@ -147,6 +147,24 @@ describe('classifyField', () => {
     ['Wet Lab Research Intern', 'Healthcare & Life Sciences'],
     ['Biomedical Engineering Intern - Medical Devices', 'Healthcare & Life Sciences'],
     ['Hospital Administrative Fellow', 'Healthcare & Life Sciences'],
+    // Business analytics is its own field rather than scattered across the
+    // functions an analyst happens to sit in.
+    ['Business Analyst Intern - Summer 2027', 'Business Analytics'],
+    ['Business Systems Analyst Co-op', 'Business Analytics'],
+    ['Business Intelligence Analyst Intern', 'Business Analytics'],
+    ['Power BI Intern', 'Business Analytics'],
+    ['Business Analytics Intern', 'Business Analytics'],
+    ['Pricing Analyst Intern', 'Business Analytics'],
+    ['Product Analyst Intern', 'Business Analytics'],
+    ['Consumer Insights Intern', 'Business Analytics'],
+    ['People Analytics Intern', 'Business Analytics'],
+    ['Revenue Management Intern', 'Business Analytics'],
+    ['Data Intern, Analytics & Decision Science', 'Business Analytics'],
+    // The neighbors it must not swallow.
+    ['Data Analyst Intern', 'Data & Analytics'],
+    ['Financial Analyst Intern', 'Finance & Accounting'],
+    ['Financial Reporting Intern', 'Finance & Accounting'],
+    ['Analytics Engineer Intern', 'Data & Analytics'],
   ];
   for (const [title, expected] of cases) {
     it(`maps "${title}" to ${expected}`, () => {
@@ -523,5 +541,38 @@ describe('csv round-trip', () => {
   it('neutralizes spreadsheet formula injection', () => {
     const csv = toCsv([{ note: '=cmd|calc' }]);
     assert.ok(csv.includes("'=cmd|calc"), 'leading = should be escaped');
+  });
+});
+
+describe('classifyField: business analytics against description noise', () => {
+  it('keeps an analytics title in analytics even when the body is all marketing', () => {
+    const body =
+      'Join our marketing team. You will support digital marketing campaigns, social media, ' +
+      'SEO, brand strategy and content marketing, and help with demand generation.';
+    const r = classifyField('Marketing Analytics Intern', body);
+    assert.equal(r.field, 'Business Analytics');
+    assert.equal(r.roleFamily, 'business-analytics');
+  });
+
+  it('keeps a data analyst title out of BI when the body mentions dashboards', () => {
+    const body = 'Build dashboards in Power BI and Tableau, track KPIs, and support data visualization.';
+    assert.equal(classifyField('Data Analyst Intern', body).roleFamily, 'data-analyst');
+  });
+
+  it('never files a role under business analytics on description prose alone', () => {
+    const body =
+      'Support packaging development. Build dashboards, track KPIs, use Power BI and forecasting ' +
+      'to deliver consumer insights and data-driven recommendations.';
+    assert.notEqual(classifyField('Internship - R&D Packaging Engineer', body).field, 'Business Analytics');
+  });
+
+  it('leaves healthcare analytics to the healthcare taxonomy', () => {
+    assert.notEqual(classifyField('Healthcare Analytics Intern').field, 'Business Analytics');
+  });
+
+  it('splits the three business analytics families', () => {
+    assert.equal(classifyField('Business Analyst Intern').roleFamily, 'business-analyst');
+    assert.equal(classifyField('BI Developer Intern').roleFamily, 'business-intelligence');
+    assert.equal(classifyField('Sales Analytics Intern').roleFamily, 'business-analytics');
   });
 });

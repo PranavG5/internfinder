@@ -235,7 +235,9 @@ export async function fetchWorkday(token: string, label: string): Promise<RawLis
   // The healthcare and research terms are here for the same reason: a hospital
   // hires student nurses as "externs" and a university hires undergraduates as
   // "research assistants", and neither word appears anywhere near "internship".
-  for (const term of ['intern', 'extern', 'student', 'research assistant', 'fellowship']) {
+  // Banks and insurers run their programs as "Summer Analyst", and many
+  // analytics and business roles are titled "Co-op"; neither says "intern".
+  for (const term of ['intern', 'extern', 'student', 'research assistant', 'fellowship', 'summer analyst', 'co-op']) {
     const first = await page(board, term, 0);
     const total = first?.total ?? 0;
     // Above the fuzzy limit the query has stopped being about student roles.
