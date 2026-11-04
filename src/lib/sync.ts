@@ -13,6 +13,7 @@ import { fetchEightfold } from './sources/eightfold';
 import { fetchOracle } from './sources/oracle';
 import { fetchPhenom } from './sources/phenom';
 import { fetchWorkday } from './sources/workday';
+import { fetchJibe } from './sources/jibe';
 import { fetchOrise, fetchUsaJobs } from './sources/research';
 import {
   fetchArbeitnow,
@@ -21,6 +22,8 @@ import {
   fetchMuse,
   fetchRemoteOk,
 } from './sources/feeds';
+import { isPartial } from './sources/partial';
+import { employerKey, probeMuseEmployers } from './sources/muse-discovery';
 import { checkLink, mapPool } from './sources/http';
 import { boardFromUrl, fallbackLabel, SEED_BOARDS, SEED_FEEDS } from './sources/seed';
 import { DAY } from './util';
@@ -97,6 +100,11 @@ export interface SyncOptions {
   trigger?: string;
   /** Cap on ATS boards touched in one run (keeps a manual sync quick). */
   maxBoards?: number;
+  /**
+   * A run that must fit a serverless time limit: The Muse gets a small request
+   * budget (its full sweep takes minutes) and no employer page probes.
+   */
+  light?: boolean;
   onProgress?: (message: string) => void;
 }
 
@@ -169,13 +177,14 @@ const BOARD_KINDS = new Set([
   'bamboohr',
   'breezy',
   'personio',
+  'jibe',
 ]);
 
 function isBoardKind(kind: string): boolean {
   return BOARD_KINDS.has(kind);
 }
 
-async function fetchSource(row: SourceRow): Promise<RawListing[]> {
+async function fetchSource(row: SourceRow, opts: SyncOptions = {}): Promise<RawListing[]> {
   switch (row.kind) {
     case 'greenhouse':
       return fetchGreenhouse(row.token, row.label);
@@ -201,12 +210,14 @@ async function fetchSource(row: SourceRow): Promise<RawListing[]> {
       return fetchBamboo(row.token, row.label);
     case 'breezy':
       return fetchBreezy(row.token, row.label);
+    case 'jibe':
+      return fetchJibe(row.token, row.label);
     case 'personio':
       return fetchPersonio(row.token, row.label);
     case 'amazon':
       return fetchAmazon();
     case 'muse':
-      return fetchMuse();
+      return fetchMuse(opts.light ? { budget: 100 } : {});
     case 'orise':
       return fetchOrise();
     case 'usajobs':
@@ -250,12 +261,21 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
   const bySource = new Map<string, NormalizedListing[]>();
   /** Apply URLs plus the employer name the feed gave us, for board discovery. */
   const seenUrls: { url: string; company?: string }[] = [];
+  /** Muse postings, whose pages reveal the employer's own board. */
+  const musePostings: { company: string; applyUrl: string }[] = [];
+  /** Sources that returned only part of what they carry, so absence proves nothing. */
+  const partialSources = new Set<string>();
 
   await mapPool(sources, opts.concurrency ?? 6, async (row) => {
     const startMs = Date.now();
     const sourceKey = `${row.kind}:${row.token}`;
     try {
-      const raw = await fetchSource(row);
+      const raw = await fetchSource(row, opts);
+      if (row.kind === 'muse') {
+        for (const item of raw) musePostings.push({ company: item.company, applyUrl: item.applyUrl });
+      }
+      const partial = isPartial(raw);
+      if (partial) partialSources.add(sourceKeyForRow(row));
       const listings: NormalizedListing[] = [];
       for (const item of raw) {
         // Only aggregator feeds carry a trustworthy employer name for a board
@@ -271,6 +291,7 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
       // Group by the source string the adapter actually emitted, since
       // aggregator feeds carry their own per-source identity.
       for (const listing of listings) {
+        if (partial) partialSources.add(listing.source);
         const bucket = bySource.get(listing.source) ?? [];
         bucket.push(listing);
         bySource.set(listing.source, bucket);
@@ -326,7 +347,10 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
   const { inserted, updated, reopened, skipped } = await upsertListings(all);
 
   // ---- Close listings that vanished from a source that synced cleanly. ----
-  const healthySources = [...bySource.keys()];
+  // A partial read (a page cap or request budget ran out) is skipped: what it
+  // did not reach is unread, not delisted. The unseen sweep covers those.
+  const healthySources = [...bySource.keys()].filter((source) => !partialSources.has(source));
+  if (partialSources.size) log(`Skipping delisting for ${partialSources.size} partially read source(s).`);
   const closed = await reconcileOpenness(bySource, healthySources);
 
   // ---- Lifecycle sweep + dedupe. ----
@@ -337,6 +361,11 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
   let discovered = 0;
   if (!opts.noDiscover) {
     discovered = await discoverBoards(seenUrls);
+    if (musePostings.length && !opts.light) {
+      const fromMuse = await discoverFromMuse(musePostings);
+      if (fromMuse > 0) log(`Learned ${fromMuse} employer board(s) from Muse posting pages.`);
+      discovered += fromMuse;
+    }
     if (discovered > 0) log(`Discovered ${discovered} new company job board(s) for future syncs.`);
   }
 
@@ -377,6 +406,39 @@ export async function runSync(opts: SyncOptions = {}): Promise<SyncResult> {
     sources: outcomes,
     errors,
   };
+}
+
+/** Muse posting pages opened per sync, one per employer the catalog lacks. */
+const MUSE_PROBES_PER_RUN = 80;
+
+/**
+ * Register the boards of Muse employers the catalog has no board for yet.
+ * Employers are matched by name against existing board labels, and discovery
+ * labels what it finds with the Muse employer name, so an employer probed
+ * successfully once is skipped from then on.
+ */
+async function discoverFromMuse(postings: { company: string; applyUrl: string }[]): Promise<number> {
+  const labels = await q<{ label: string }>('SELECT label FROM source_configs');
+  const known = new Set(labels.map((r) => employerKey(r.label)));
+  const probes = await probeMuseEmployers(postings, known, { max: MUSE_PROBES_PER_RUN });
+  const seen: { url: string; company: string }[] = [];
+  for (const probe of probes) {
+    for (const url of probe.urls) {
+      const board = boardFromUrl(url);
+      // Phenom is recognized by URL shape alone, and plenty of branded careers
+      // sites share that shape without running Phenom. Nothing disables a board
+      // that keeps failing, so only register one that actually answers.
+      if (board?.kind === 'phenom') {
+        try {
+          await fetchPhenom(board.token, probe.company);
+        } catch {
+          continue;
+        }
+      }
+      seen.push({ url, company: probe.company });
+    }
+  }
+  return discoverBoards(seen);
 }
 
 /** Singleton feeds emit a bare kind as their source string; boards emit "kind:token". */

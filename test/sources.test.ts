@@ -135,3 +135,42 @@ describe('fallbackLabel', () => {
     assert.equal(board.label, fallbackLabel(board));
   });
 });
+
+describe('partial fetch marker', () => {
+  it('survives on the array it marks and is absent otherwise', async () => {
+    const { markPartial, isPartial } = await import('../src/lib/sources/partial');
+    const list = markPartial([1, 2, 3]);
+    assert.equal(isPartial(list), true);
+    assert.equal(isPartial([1, 2, 3]), false);
+    // A derived array is a new result and must be marked again on purpose.
+    assert.equal(isPartial(list.filter(Boolean)), false);
+  });
+});
+
+describe('Muse employer discovery', () => {
+  it('finds the escaped ATS link a posting page embeds, and nothing else', async () => {
+    const { boardUrlsFromHtml } = await import('../src/lib/sources/muse-discovery');
+    const html =
+      '<a href="https://www.celonis.com/careers/privacy-notice/">x</a>' +
+      '"applyUrl":"https://job-boards.greenhouse.io/celonis/jobs/7767090003?gh_jid=7767090003\\\\"' +
+      '<a href="https://schwab.wd1.myworkdayjobs.com/en-US/SchwabCareers/job/Austin/Intern_R123?a=1&amp;b=2">';
+    const urls = boardUrlsFromHtml(html);
+    assert.equal(urls.length, 2);
+    assert.ok(urls.some((u) => u.startsWith('https://job-boards.greenhouse.io/celonis/')));
+    assert.ok(urls.some((u) => u.includes('a=1&b=2')));
+  });
+
+  it('matches employer names loosely', async () => {
+    const { employerKey } = await import('../src/lib/sources/muse-discovery');
+    assert.equal(employerKey('The Charles Schwab Corporation'), employerKey('Charles Schwab'));
+    assert.equal(employerKey('Procter & Gamble'), employerKey('Procter and Gamble Co.'));
+  });
+});
+
+describe('jibeHost', () => {
+  it('reduces a careers URL or host to the bare host', async () => {
+    const { jibeHost } = await import('../src/lib/sources/jibe');
+    assert.equal(jibeHost('https://Careers.Principal.com/jobs/53110?lang=en-us'), 'careers.principal.com');
+    assert.equal(jibeHost('jobs.statefarm.com'), 'jobs.statefarm.com');
+  });
+});

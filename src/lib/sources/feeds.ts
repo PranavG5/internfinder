@@ -1,6 +1,7 @@
 import type { RawListing } from '../parse';
 import { decodeHtmlEntities } from '../util';
 import { getJson } from './http';
+import { markPartial } from './partial';
 
 /**
  * Community-maintained and public job feeds.
@@ -210,30 +211,73 @@ interface MuseJob {
 /**
  * The Muse indexes employers that the ATS crawlers never reach: hospital
  * systems, health insurers, clinics, school districts and government agencies
- * post here even when their own careers site is a closed portal.
+ * post here even when their own careers site is a closed portal. It is also
+ * one of the few places banks, insurers, retailers and consumer brands list
+ * their business analyst, analytics and insights internships.
  *
- * The catalog is queried once broadly and once per category that a private
- * board search would otherwise miss, because the API returns at most 100 pages
- * for any single query.
+ * Any single query stops at 99 pages, and the internship catalog runs to
+ * about 10,000 postings, so it is read category by category. The business
+ * categories go first, since no ATS crawl reaches most of their employers.
+ * A category longer than the page cap is read from both ends.
  */
-const MUSE_QUERIES: { category?: string; label: string }[] = [
-  { label: 'all internships' },
-  { category: 'Healthcare', label: 'healthcare' },
-  { category: 'Science and Engineering', label: 'science' },
-  { category: 'Education', label: 'education' },
+const MUSE_CATEGORIES = [
+  // Business analytics, finance and operations.
+  'Data and Analytics',
+  'Business Operations',
+  'Accounting and Finance',
+  'Management',
+  'Project Management',
+  'Product Management',
+  'Sales',
+  'Account Management',
+  'Advertising and Marketing',
+  'Human Resources and Recruitment',
+  'Transportation and Logistics',
+  // Healthcare, science and education, which the catalog already leaned on.
+  'Healthcare',
+  'Science and Engineering',
+  'Education',
+  // Everything else with a meaningful internship count.
+  'Software Engineering',
+  'Design and UX',
+  'Legal Services',
+  'Computer and IT',
+  'Administration and Office',
+  'Media, PR, and Communications',
+  'Food and Hospitality Services',
+  'Manufacturing and Warehouse',
 ];
 
-/** Pages per query. The API serves 20 per page and refuses page 100 or higher. */
-const MUSE_MAX_PAGES = 40;
+/** The API serves 20 per page and stops at page 99. */
+const MUSE_MAX_PAGES = 99;
 
-export async function fetchMuse(): Promise<RawListing[]> {
+/**
+ * Requests per sync. Anonymous callers get 500 an hour, so the default leaves
+ * headroom for retries; a free key (MUSE_API_KEY) raises the limit to 3,600.
+ */
+const MUSE_BUDGET = process.env.MUSE_API_KEY ? 3000 : 450;
+
+export async function fetchMuse(opts: { budget?: number } = {}): Promise<RawListing[]> {
+  const budget = Math.min(opts.budget ?? MUSE_BUDGET, MUSE_BUDGET);
   const found = new Map<number, MuseJob>();
+  const key = process.env.MUSE_API_KEY;
+  let requests = 0;
+  /** Whether anything was left unread, which makes the result a partial view. */
+  let truncated = false;
 
-  for (const query of MUSE_QUERIES) {
-    for (let page = 0; page < MUSE_MAX_PAGES; page++) {
+  const read = async (category: string | null, descending: boolean, maxPages: number) => {
+    let pageCount = 0;
+    for (let page = 0; page < maxPages; page++) {
+      if (requests >= budget) {
+        truncated = true;
+        return pageCount;
+      }
+      requests++;
       const url =
         `https://www.themuse.com/api/public/jobs?page=${page}&level=Internship` +
-        (query.category ? `&category=${encodeURIComponent(query.category)}` : '');
+        (category ? `&category=${encodeURIComponent(category)}` : '') +
+        (descending ? '&descending=true' : '') +
+        (key ? `&api_key=${encodeURIComponent(key)}` : '');
 
       // A page past the end answers 400, which means "done", not "broken".
       const data = await getJson<{ results?: MuseJob[]; page_count?: number }>(url, {
@@ -242,11 +286,31 @@ export async function fetchMuse(): Promise<RawListing[]> {
       });
       const batch = data?.results ?? [];
       for (const job of batch) if (job.id) found.set(job.id, job);
-      if (batch.length === 0 || page + 1 >= (data?.page_count ?? 0)) break;
+      pageCount = data?.page_count ?? 0;
+      if (batch.length === 0 || page + 1 >= pageCount) return pageCount;
+    }
+    return pageCount;
+  };
+
+  for (const category of MUSE_CATEGORIES) {
+    const pages = await read(category, false, MUSE_MAX_PAGES);
+    if (pages > MUSE_MAX_PAGES) {
+      // Too long for one pass, so come at it from the other end too.
+      await read(category, true, Math.min(MUSE_MAX_PAGES, pages - MUSE_MAX_PAGES));
+      if (pages > 2 * MUSE_MAX_PAGES) truncated = true;
     }
   }
 
-  return [...found.values()]
+  // Some postings carry no category at all. The uncategorized remainder is
+  // only reachable through the unfiltered query, which is far longer than one
+  // pass, so whatever budget is left goes there and the result is partial.
+  const total = await read(null, false, MUSE_MAX_PAGES);
+  if (total > MUSE_MAX_PAGES) {
+    await read(null, true, MUSE_MAX_PAGES);
+    truncated = true;
+  }
+
+  const listings = [...found.values()]
     .map((job): RawListing => ({
       source: 'muse',
       sourceKind: 'aggregator',
@@ -264,6 +328,8 @@ export async function fetchMuse(): Promise<RawListing[]> {
       tags: (job.tags ?? []).map((t) => t.name).filter(Boolean).slice(0, 6) as string[],
     }))
     .filter((l) => l.applyUrl && l.company && l.title);
+
+  return truncated ? markPartial(listings) : listings;
 }
 
 // ----------------------------------------------------------------- Arbeitnow

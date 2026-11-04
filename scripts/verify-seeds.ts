@@ -15,6 +15,7 @@ import { fetchEightfold } from '../src/lib/sources/eightfold';
 import { fetchOracle } from '../src/lib/sources/oracle';
 import { fetchPhenom } from '../src/lib/sources/phenom';
 import { fetchWorkday } from '../src/lib/sources/workday';
+import { fetchJibe } from '../src/lib/sources/jibe';
 import { mapPool } from '../src/lib/sources/http';
 
 async function fetchCount(kind: string, token: string, label: string): Promise<number> {
@@ -43,6 +44,8 @@ async function fetchCount(kind: string, token: string, label: string): Promise<n
       return (await fetchBamboo(token, label)).length;
     case 'breezy':
       return (await fetchBreezy(token, label)).length;
+    case 'jibe':
+      return (await fetchJibe(token, label)).length;
     case 'personio':
       return (await fetchPersonio(token, label)).length;
     default:

@@ -62,3 +62,11 @@ jobs:
             --concurrency 14 \
             ${KINDS:+--kinds "$KINDS"} \
             --verify "$VERIFY"
+
+      # Applies classifier changes to listings already in the catalog, rather
+      # than waiting a day or two for every board to be fetched again. It runs
+      # once per classifier version and returns immediately after that.
+      - name: Reclassify catalog into new fields
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npm run reclassify

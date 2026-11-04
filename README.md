@@ -58,7 +58,10 @@ about the guarantees. Four independent mechanisms keep closed roles out:
    carries is marked closed. Critically, this only applies to sources that
    **fetched successfully**, because a network failure must never be read as
    "this employer closed every role". That is the obvious way to corrupt a
-   catalog like this.
+   catalog like this. The same goes for a source read only in part (a feed
+   longer than its page cap or request budget): what a partial read did not
+   reach is unread, not delisted, so those sources skip this step and rely on
+   the sweeps below.
 
 3. **Time-based sweeps.** A listing is closed automatically when its stated
    deadline passes, when it hasn't been seen for 21 days, when it was posted
@@ -99,10 +102,11 @@ There's also a "Sync now" button on the Sources page for any signed-in user.
 | **Phenom careers sites** | How nearly every US health system fronts its ATS. Stanford Health Care, CHOP, Sutter, Trinity Health, Corewell, Wellstar, Prisma, Cincinnati Children's, Yale, UVA, Labcorp, GSK, Lilly and more |
 | Greenhouse / Ashby / Lever | Startups and mid-size tech and health tech, with full descriptions, structured pay, and real deadlines |
 | SmartRecruiters / Workable | Visa, ServiceNow, Bosch, Experian and European employers |
+| **Jibe (iCIMS)** | The careers sites iCIMS employers put in front of a closed ATS: State Farm, PepsiCo, Principal, Aon, Gallagher, ZS, S&P Global, Ulta and Booking.com |
 | Rippling / BambooHR / Breezy / Personio | The long tail of smaller employers |
 | Amazon | `amazon.jobs` directly, several thousand student roles worldwide |
 | Eightfold | Netflix and other tenants that leave their jobs API open |
-| **The Muse** | Employers whose own site is a closed portal: hospitals, insurers, clinics, school districts and agencies. Queried by internship level across all categories plus healthcare, science and education |
+| **The Muse** | Employers whose own site is a closed portal: hospitals, insurers, banks, retailers, consumer brands, school districts and agencies. Read category by category (about 10,000 internships), and each employer's posting page reveals its real job board for discovery. An optional free `MUSE_API_KEY` raises the request budget |
 | **ORISE / Zintellect** | The federal research participation catalog. NIH, CDC, FDA, EPA, NASA, NIST, the Army and Navy labs, and every Department of Energy national laboratory recruit students here |
 | **USAJOBS** | Federal student openings including the government-wide Pathways Internship Program. Needs a free API key (see `.env.example`); the source stays quiet without one |
 | Community lists | The SimplifyJobs (internship + new-grad) and vanshb03 repos, broad coverage with per-listing active flags |
@@ -110,7 +114,7 @@ There's also a "Sync now" button on the Sources page for any signed-in user.
 
 **The source list grows itself, and that is the main engine.** Every sync reads
 the apply links it encounters and starts tracking any employer board it
-recognizes, across all thirteen providers above. The seed list ships ~490 boards
+recognizes, across the providers above. The seed list ships ~490 boards
 each confirmed to return live internships (`npm run verify-seeds` re-checks
 them); the community archives name roughly **4,000 employer boards**, and the
 discovery pass registers them on the first full run. You can also paste any
@@ -124,11 +128,48 @@ npm run sync -- --kinds workday       # just the Workday tenants
 npm run sync -- --only greenhouse:figma
 npm run sync -- --verify 200          # sync, then link-check 200 listings
 npm run verify -- 500                 # link-check only
+npm run reclassify                    # apply classifier changes to the catalog
 ```
 
 Capped runs **round-robin across providers**, so one sync samples every ATS
 rather than exhausting whichever sorts first alphabetically. Boards are picked
 least-recently-synced first, so repeated runs cover everything over time.
+
+### Business analytics
+
+Business analyst, BI and analytics internships used to be scattered across
+whatever function the analyst sat in: a pricing analyst under sales, a people
+analytics intern under HR, a product analyst under product management. They
+now have their own field, **Business Analytics**, with three role families:
+
+- `business-analyst`: business analyst, business systems analyst, process and
+  functional analyst roles
+- `business-intelligence`: BI analysts and developers, Power BI and Tableau
+  roles, reporting and dashboard work
+- `business-analytics`: analytics attached to a business function (marketing,
+  sales, pricing, revenue, product, people, supply chain, finance, risk,
+  e-commerce), plus consumer insights, decision science and revenue
+  management
+
+Filter with **Field → Business Analytics**, or `/?field=Business+Analytics`.
+A title phrase like "Marketing Analytics" is decisive: the marketing prose in
+the description is context, not evidence the role is marketing. Plain "Data
+Analyst" roles stay under Data & Analytics, and healthcare analytics stays in
+the healthcare taxonomy.
+
+The employers who hire these roles (banks, insurers, retailers, consumer
+brands, airlines) mostly do not appear in the tech-focused community lists,
+so they are reached four ways: The Muse's business categories; discovery of
+each Muse employer's own board from its posting pages (up to 80 new employers
+a sync); a Jibe adapter for the iCIMS employers (insurers, consumer brands,
+consultancies) whose own ATS has no public API; and a Workday search for
+"Summer Analyst" and "Co-op" programs that never say "intern". A role only
+counts as business analytics when its title says so, since analytics
+vocabulary runs through engineering and operations descriptions too.
+
+`npm run reclassify` applies a classifier change to listings already in the
+catalog, once per classifier version. The scheduled sync runs it after every
+sync, so a taxonomy change reaches the whole catalog on the next run.
 
 ### Healthcare, premed, and research
 
@@ -191,7 +232,7 @@ search is shareable and bookmarkable.
 
 - **Term**: season, year, program type (internship, co-op, apprenticeship, fellowship, research, rotational)
 - **Timing**: starts after/before, deadline before, has a deadline, posted within N days, duration in weeks
-- **Field & role**: 29 fields and 55+ specific role families (backend, quant research, nursing, public health, clinical research, lab research, …)
+- **Field & role**: 30 fields and 58+ specific role families (backend, business analyst, business intelligence, quant research, nursing, public health, clinical research, lab research, …)
 - **Location**: free text, country, state/region, and remote / hybrid / onsite
 - **Eligibility**: degree level, class year, your GPA (hides roles asking for more), work authorization, security clearance
 - **Pay**: paid only, has a listed salary, minimum hourly rate (monthly and annual figures are normalized to hourly so the comparison is fair)
@@ -325,7 +366,7 @@ Job postings are unstructured prose, so most of the real work is extraction:
 Anything not confidently determined stays `null` rather than being guessed, so a
 filter never silently excludes a listing based on invented data.
 
-120 unit tests cover these, including the failure modes above:
+140+ unit tests cover these, including the failure modes above:
 
 ```bash
 npm test
